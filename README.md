@@ -4,7 +4,7 @@ A human-like auto-typer for Windows. It types text into the focused window chara
 
 - **Stack:** C# / .NET 10, WPF (MVVM via CommunityToolkit.Mvvm), `SendInput` via InputSimulatorPlus.
 - **Target:** Windows 10 1809+ / Windows 11.
-- **Status:** Phase 4 complete. Types real keystrokes (US QWERTY + Unicode fallback) into the focused window with **human-like timing and self-correcting typos**, driven from a temporary debug button. The real UI (sliders, hotkey) is Phases 5–6.
+- **Status:** Phase 5 complete. Full WPF UI — text box, **WPM / jitter / typo-rate sliders, fatigue + always-on-top toggles, layout/hotkey dropdowns**, a live character count and `≈` time estimate, and **Start / Stop** (Stop and `Escape` cancel cleanly). Types real keystrokes (US QWERTY + Unicode fallback) into the focused window with **human-like timing and self-correcting typos**. The system-wide global hotkey + elevated-target handling are Phase 6.
 
 ## Documents
 
@@ -25,13 +25,16 @@ dotnet run --project src\TypeGent.App # launch the WPF window
 
 Only the **.NET 10 SDK** is required to build and run; Visual Studio is optional.
 
-## Test it yourself (Phase 4)
+## Test it yourself (Phase 5)
 
-Right now the app is a **debug harness**, not the finished tool: one text box, a **Type test**
-button, and a status line. Clicking the button counts down 3 seconds (so you can switch focus to
-your target), then types the text box contents into **whatever window is in the foreground** using
-real OS keystrokes — now with **human-like timing and occasional typos that correct themselves**
-(default profile: 60 WPM, ~2% typo rate). The final text always matches what you pasted.
+The app now has its **real UI**: a text box, sliders for **Speed (WPM)**, **Jitter (σ)** and
+**Typo rate**, **Fatigue** and **Keep window on top** toggles, **Keyboard layout** + **Hotkey**
+dropdowns, a live **character count** and **≈ estimated time**, and **Start / Stop** buttons. The
+character count and time estimate update as you type or drag the WPM slider.
+
+Because the system-wide hotkey is still Phase 6, **Start** uses a 3-second countdown so you can
+focus your target window first, then types the text box contents into **whatever window is in the
+foreground** using the human engine with the profile you set. The final text always matches the input.
 
 ### Manual smoke test — type into Notepad
 
@@ -40,18 +43,21 @@ real OS keystrokes — now with **human-like timing and occasional typos that co
    ```powershell
    dotnet run --project src\TypeGent.App
    ```
-3. The text box is pre-filled with a ~210-char paragraph. Leave it or paste your own.
-4. Click **Type test**. The status shows a countdown: *"Switch to your target window… typing in 3 / 2 / 1"*.
-5. **During the countdown, click into the Notepad window** so it has focus.
-6. Watch the text appear in Notepad. The status returns to **Done.**
+3. Type or paste some text. Watch **Characters** and **≈ estimated time** update live; drag **Speed (WPM)** and the estimate changes immediately.
+4. Set the sliders to taste (e.g. raise **Typo rate** to see more corrections).
+5. Click **Start**. The status shows a countdown: *"Switch to your target window… typing in 3 / 2 / 1"*.
+6. **During the countdown, click into the Notepad window** so it has focus.
+7. Watch the text appear in Notepad. The status returns to **Done.**
 
 **What to verify:**
 
-- The text appears in **Notepad**, not back in TypeGent's text box. (If it lands in TypeGent, you
-  didn't switch focus in time — try again.)
+- The text appears in **Notepad**, not back in TypeGent's text box. (If you *don't* switch focus,
+  TypeGent detects its own window is in front and shows *"Click into the target app first…"* instead
+  of typing into itself — no crash.)
+- **Stop** (or pressing **Escape** while TypeGent is focused) halts typing within one keystroke.
 - **The pace varies like a person** — slightly slower after spaces, faster on common letter pairs,
   not a metronome.
-- **Occasional typos that fix themselves** — every ~50 characters you'll see a wrong key (or a
+- **Occasional typos that fix themselves** — you'll see a wrong key (or a
   swapped/doubled/wrongly-capitalized letter) appear, get backspaced, and corrected. **The final
   text always matches the input** — try a long paragraph and compare.
 - Capitals, a real comma `,` (not `<`), and out-of-layout characters like `—`/`é` (Unicode fallback)
@@ -59,8 +65,9 @@ real OS keystrokes — now with **human-like timing and occasional typos that co
 
 ### Things that won't work yet (by design)
 
-- **No sliders yet** — WPM / jitter / typo-rate are fixed at the default profile. Tuning UI arrives in **Phase 5**.
-- **No global hotkey / real UI** — you must use the debug button. Those land in **Phases 5–6**.
+- **No global hotkey** — Start uses a countdown button; the system-wide hotkey (and a true global
+  `Escape`) land in **Phase 6**. The hotkey dropdown is bound but not yet registered.
+- **Other keyboard layouts** — the dropdown lists **US QWERTY** only; UK/AZERTY/Dvorak/Colemak are v2.
 - **Elevated targets:** a normal (non-admin) TypeGent can't type into an app running **as
   Administrator** (e.g. an elevated Notepad). That's a Windows security boundary; explicit handling
   comes in **Phase 6**.
