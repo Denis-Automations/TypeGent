@@ -4,40 +4,138 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:TypeGent.App"
+        xmlns:conv="clr-namespace:TypeGent.App.Converters"
+        xmlns:vm="clr-namespace:TypeGent.App.ViewModels"
         mc:Ignorable="d"
-        Title="TypeGent" Height="500" Width="800">
+        Title="TypeGent" Height="560" Width="640" MinHeight="520" MinWidth="520"
+        Topmost="{Binding Topmost}"
+        d:DataContext="{d:DesignInstance vm:MainViewModel}">
+
+    <!-- Escape is an emergency stop while the window is focused; the global hotkey lands in Phase 6. -->
+    <Window.InputBindings>
+        <KeyBinding Key="Escape" Command="{Binding StopCommand}" />
+    </Window.InputBindings>
+
+    <Window.Resources>
+        <conv:EnumLabelConverter x:Key="EnumLabel" />
+        <Style TargetType="TextBlock" x:Key="FieldLabel">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,12,0" />
+        </Style>
+    </Window.Resources>
+
     <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <!-- Text to type -->
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
+            <!-- Char count + estimate -->
             <RowDefinition Height="Auto" />
+            <!-- Sliders -->
+            <RowDefinition Height="Auto" />
+            <!-- Dropdowns -->
+            <RowDefinition Height="Auto" />
+            <!-- Buttons -->
+            <RowDefinition Height="Auto" />
+            <!-- Status -->
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0"
-                   Margin="0,0,0,8"
-                   TextWrapping="Wrap"
-                   Text="Phase 4 debug. Edit the text, click &quot;Type test&quot;, then switch focus to your target window (e.g. Notepad) during the 3-second countdown. Typing uses the human engine (default 60 WPM, ~2% typo rate with immediate corrections); WPM / typo sliders arrive in Phase 5." />
+        <TextBlock Grid.Row="0" Text="Text to type:" Margin="0,0,0,4" FontWeight="SemiBold" />
 
         <TextBox Grid.Row="1"
-                 x:Name="TextToType"
+                 Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"
                  AcceptsReturn="True"
                  TextWrapping="Wrap"
                  VerticalScrollBarVisibility="Auto"
                  FontFamily="Consolas"
-                 Text="The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs! TypeGent types like a human: with a natural rhythm, the occasional slip, and an immediate correction — then it keeps right on going." />
+                 MinHeight="120" />
 
-        <Button Grid.Row="2"
-                x:Name="TypeButton"
-                Content="Type test"
-                Margin="0,8,0,0"
-                Padding="14,6"
-                HorizontalAlignment="Left"
-                Click="TypeButton_Click" />
+        <DockPanel Grid.Row="2" Margin="0,6,0,10">
+            <TextBlock DockPanel.Dock="Right" Text="{Binding EstimatedTimeText, StringFormat='Estimated time: {0}'}" />
+            <TextBlock Text="{Binding CharacterCountText}" />
+        </DockPanel>
 
-        <TextBlock Grid.Row="3"
-                   x:Name="StatusText"
-                   Margin="0,8,0,0"
-                   Text="Idle." />
+        <!-- Sliders -->
+        <Grid Grid.Row="3">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="64" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Speed (WPM):" Style="{StaticResource FieldLabel}" />
+            <Slider Grid.Row="0" Grid.Column="1" VerticalAlignment="Center"
+                    Minimum="10" Maximum="200" IsSnapToTickEnabled="True" TickFrequency="1"
+                    Value="{Binding Wpm}" />
+            <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding Wpm}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="Jitter (σ):" Style="{StaticResource FieldLabel}" Margin="0,8,12,0" />
+            <Slider Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" Margin="0,8,0,0"
+                    Minimum="0" Maximum="1" Value="{Binding Jitter}" />
+            <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding Jitter, StringFormat=F2}" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,8,0,0" />
+
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="Typo rate:" Style="{StaticResource FieldLabel}" Margin="0,8,12,0" />
+            <Slider Grid.Row="2" Grid.Column="1" VerticalAlignment="Center" Margin="0,8,0,0"
+                    Minimum="0" Maximum="0.5" Value="{Binding TypoRate}" />
+            <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding TypoRate, StringFormat=P0}" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,8,0,0" />
+
+            <TextBlock Grid.Row="3" Grid.Column="0" Text="Fatigue:" Style="{StaticResource FieldLabel}" Margin="0,10,12,0" />
+            <CheckBox Grid.Row="3" Grid.Column="1" VerticalAlignment="Center" Margin="0,10,0,0"
+                      IsChecked="{Binding Fatigue}" Content="Gradually slow down as more is typed" />
+        </Grid>
+
+        <!-- Dropdowns + window options -->
+        <Grid Grid.Row="4" Margin="0,14,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Keyboard layout:" Style="{StaticResource FieldLabel}" />
+            <ComboBox Grid.Row="0" Grid.Column="1" HorizontalAlignment="Left" MinWidth="200"
+                      ItemsSource="{Binding LayoutOptions}" SelectedItem="{Binding LayoutKind}">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Converter={StaticResource EnumLabel}}" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="Hotkey to start:" Style="{StaticResource FieldLabel}" Margin="0,8,12,0" />
+            <ComboBox Grid.Row="1" Grid.Column="1" HorizontalAlignment="Left" MinWidth="200" Margin="0,8,0,0"
+                      ItemsSource="{Binding HotKeyOptions}" SelectedItem="{Binding HotKey}">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Converter={StaticResource EnumLabel}}" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+
+            <CheckBox Grid.Row="2" Grid.Column="1" HorizontalAlignment="Left" Margin="0,10,0,0"
+                      IsChecked="{Binding Topmost}" Content="Keep window on top" />
+        </Grid>
+
+        <!-- Buttons -->
+        <StackPanel Grid.Row="5" Orientation="Horizontal" Margin="0,16,0,0">
+            <Button Content="Start" Padding="20,6" MinWidth="120"
+                    Command="{Binding StartCommand}" IsDefault="True" />
+            <Button Content="Stop" Padding="20,6" MinWidth="120" Margin="12,0,0,0"
+                    Command="{Binding StopCommand}" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="6" Margin="0,12,0,0" TextWrapping="Wrap"
+                   Text="{Binding Status, StringFormat='Status: {0}'}" />
     </Grid>
 </Window>

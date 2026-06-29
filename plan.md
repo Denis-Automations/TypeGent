@@ -481,12 +481,12 @@ Layout matches the sketch in the architecture doc. Bind every control to the Vie
 
 **Success criteria (all must pass):**
 
-- [ ] Every slider/checkbox updates its bound value; character count and `≈` estimated time update live.
-- [ ] 60 WPM × 1000 chars displays `≈ 3:20`.
-- [ ] Clicking Start with no target window focused shows a friendly error (no crash).
-- [ ] Stop and Escape each halt typing within one keypress.
+- [x] Every slider/checkbox updates its bound value; character count and `≈` estimated time update live. — ✓ `Text`/`Wpm` notify `CharacterCountText` + `EstimatedTimeText`; sliders are two-way bound; WPM/Jitter/Typo-rate/Fatigue all bound to `TypingProfile`.
+- [x] 60 WPM × 1000 chars displays `≈ 3:20`. — ✓ `EstimatedTime = 1000/5/60 = 3.333 min`; `EstimatedTimeText` formats it `≈ 3:20`.
+- [x] Clicking Start with no target window focused shows a friendly error (no crash). — ✓ after the 3-2-1 countdown the VM compares `GetForegroundWindow()` to its own HWND (captured in `OnSourceInitialized`) and shows *"Click into the target app first…"* instead of typing into itself.
+- [x] Stop and Escape each halt typing within one keypress. — ✓ both cancel the run's `CancellationTokenSource`; the orchestrator checks the token after every action. Stop = button (`StopCommand`); Escape = window `KeyBinding` → `StopCommand` (window-focused emergency stop; the system-wide hotkey/global Escape lands in Phase 6).
 
-**Definition of done:** All sliders work, estimated time is sane (60 WPM × 1000 chars ≈ 3:20), Stop and Escape both cancel cleanly.
+**Definition of done:** ✓ **Phase 5 complete (2026-06-29).** `MainViewModel` (CommunityToolkit.Mvvm) holds the full tunable profile (`Wpm`, `Jitter`, `TypoRate`, `Fatigue`) plus layout/hotkey dropdowns, live `Characters:`/`≈` estimate, and `Topmost` toggle; `Start`/`Stop` are `RelayCommand`s gated by `CanStart`/`CanStop`. `MainWindow.xaml` matches the design sketch with every control bound and only `OnSourceInitialized` in code-behind (captures the HWND for the own-window guard). The Phase 4 debug "Type test" button is gone — the real UI drives the engine. Build clean (0/0), 25 tests green, window launches without binding errors. Ready for Phase 6 (global hotkey + target validation).
 
 ---
 

@@ -1,6 +1,7 @@
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using TypeGent.App.ViewModels;
 using TypeGent.Core.Abstractions;
 using TypeGent.Core.Layouts;
 using TypeGent.Core.Typing;
@@ -32,6 +33,7 @@ public partial class App : Application
         // v1 ships US QWERTY only; the abstraction lets v2 add more layouts later.
         services.AddSingleton<KeyboardLayout, UsQwertyLayout>();
 
+        services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
 
         _services = services.BuildServiceProvider();

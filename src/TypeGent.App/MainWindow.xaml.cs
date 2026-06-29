@@ -1,63 +1,33 @@
 using System;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Windows;
-using TypeGent.Core.HumanTyping;
-using TypeGent.Core.Layouts;
-using TypeGent.Core.Typing;
+using System.Windows.Interop;
+using TypeGent.App.ViewModels;
 
 namespace TypeGent.App;
 
 /// <summary>
 /// Interaction logic for MainWindow.xaml.
 /// <para>
-/// Phase 3 is a debug harness: a "Type test" button counts down (so the user can focus the
-/// target window), then types the text box contents into the foreground window via the
-/// orchestrator + layout. The real UI arrives in Phase 5.
+/// Phase 5: all behavior lives in <see cref="MainViewModel"/> (bound as the DataContext). The only
+/// code-behind is capturing our own window handle in <see cref="OnSourceInitialized"/> — the
+/// ViewModel uses it to refuse typing into TypeGent's own window. (The system-wide hotkey
+/// registration that also hooks in here arrives in Phase 6.)
 /// </para>
 /// </summary>
 public partial class MainWindow : Window
 {
-    private readonly TypingOrchestrator _orchestrator;
-    private readonly KeyboardLayout _layout;
+    private readonly MainViewModel _viewModel;
 
-    public MainWindow(TypingOrchestrator orchestrator, KeyboardLayout layout)
+    public MainWindow(MainViewModel viewModel)
     {
-        _orchestrator = orchestrator;
-        _layout = layout;
+        _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
+        DataContext = viewModel;
         InitializeComponent();
     }
 
-    private async void TypeButton_Click(object sender, RoutedEventArgs e)
+    protected override void OnSourceInitialized(EventArgs e)
     {
-        var text = TextToType.Text;
-        TypeButton.IsEnabled = false;
-        try
-        {
-            for (var i = 3; i >= 1; i--)
-            {
-                StatusText.Text = $"Switch to your target window… typing in {i}";
-                await Task.Delay(TimeSpan.FromSeconds(1));
-            }
-
-            StatusText.Text = "Typing…";
-
-            // Phase 4: drive the human-typing engine with a default profile. Sliders to tune
-            // WPM / typo rate arrive in Phase 5; for now the profile defaults are fixed.
-            var profile = new TypingProfile();
-            var engine = new HumanTypingEngine(new Random());
-            var actions = engine.Plan(text, profile, _layout);
-            await _orchestrator.RunAsync(actions, CancellationToken.None);
-
-            StatusText.Text = "Done.";
-        }
-        catch (Exception ex)
-        {
-            StatusText.Text = "Error: " + ex.Message;
-        }
-        finally
-        {
-            TypeButton.IsEnabled = true;
-        }
+        base.OnSourceInitialized(e);
+        _viewModel.OwnWindowHandle = new WindowInteropHelper(this).Handle;
     }
 }
