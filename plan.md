@@ -107,16 +107,16 @@ Commit both. Now you have a clean tree with the research + plan in version contr
 ### 1.4 Self-check for Phase 1
 
 - [x] `dotnet --list-sdks` shows .NET 10 — ✓ `10.0.301` (verified 2026-06-29)
-- [ ] `git status` in the project directory is clean (repo not initialized yet — see 1.3)
+- [x] `git status` in the project directory is clean — ✓ repo initialized and pushed to `origin/main`
 - [ ] You can open the project (doesn't exist yet — that's Phase 2; an IDE is optional)
 
 **Success criteria (all must pass):**
 
 - [x] `dotnet --list-sdks` includes a `10.0.x` entry. — ✓ `10.0.301`
 - [x] The build toolchain produces a runnable WPF app — ✓ `dotnet new wpf` + `dotnet build` succeeded (`net10.0-windows`, 0 errors), which supersedes the console probe and confirms WPF builds without Visual Studio.
-- [ ] `git status` is clean, with the research notes and plan committed.
+- [x] `git status` is clean, with the research notes and plan committed. — ✓ commit `Initial research and plan` pushed to <https://github.com/Denis-Automations/TypeGent.git>
 
-**Definition of done:** You can run `dotnet new console -n probe` in a temp folder, `cd probe && dotnet run`, and see "Hello, World!". The probe folder gets deleted. *(Already exceeded — a WPF build probe passed on 2026-06-29; only the git init in 1.3 remains for this phase.)*
+**Definition of done:** ✓ **Phase 1 complete (2026-06-29).** .NET 10 SDK present, WPF build probe passed, and the repo is initialized, committed, and pushed to `origin/main`. Ready for Phase 2.
 
 ---
 
