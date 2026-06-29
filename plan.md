@@ -204,11 +204,11 @@ A trivial test should pass: orchestrator given a sequence of two `Press('H')` an
 
 **Success criteria (all must pass):**
 
-- [ ] `dotnet build` completes with 0 errors (only IDE-suggested warnings, if any).
-- [ ] `dotnet run --project src\TypeGent.App` opens a window titled "TypeGent".
-- [ ] `dotnet test` passes the test asserting the orchestrator calls the fake backend exactly twice with the right VK codes.
+- [x] `dotnet build` completes with 0 errors (only IDE-suggested warnings, if any). — ✓ `0 Warning(s), 0 Error(s)` (the expected `NU1701` from InputSimulatorPlus is suppressed with a documented `<NoWarn>` per §2.2).
+- [x] `dotnet run --project src\TypeGent.App` opens a window titled "TypeGent". — ✓ verified (window titled "TypeGent", 800×500).
+- [x] `dotnet test` passes the test asserting the orchestrator calls the fake backend exactly twice with the right VK codes. — ✓ `TypingOrchestratorTests.RunAsync_TwoPresses_CallsBackendTwiceWithCorrectVirtualKeys` green (`Passed: 1`).
 
-**Definition of done:** Solution builds clean, window opens, one trivial xUnit test passes, no warnings beyond IDE-suggested ones.
+**Definition of done:** ✓ **Phase 2 complete (2026-06-29).** `TypeGent.sln` (as `TypeGent.slnx`) builds clean across all four projects; the empty WPF window opens; the fake `IKeyboardBackend` (NSubstitute) proves the Core → Native → App wiring. Placeholder code in place: `IKeyboardBackend`, `KeyAction` (Press/Chord/Text), `VirtualKey`, `TimedAction`, `TypingOrchestrator` (passes delays straight to `Task.Delay` — no human-timing model yet), `InputSimulatorPlusBackend`, and manual DI in `App.OnStartup`. Ready for Phase 3.
 
 ---
 

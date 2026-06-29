@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/TypeGent.App/TypeGent.App.csproj" />
+    <Project Path="src/TypeGent.Core/TypeGent.Core.csproj" />
+    <Project Path="src/TypeGent.Native/TypeGent.Native.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/TypeGent.Tests/TypeGent.Tests.csproj" />
+  </Folder>
+</Solution>
