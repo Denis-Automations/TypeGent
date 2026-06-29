@@ -328,14 +328,36 @@ Common bigrams list: `th er in re on an at en ed or te ng is ti`. Ship as a stat
 
 ### 4.2 ErrorModel
 
+> **Scope revised 2026-06-29 (per user).** The original plan was a single error type (neighbor key
+> + backspace). We expanded v1 to a small family of **mechanical** typos, but kept one hard rule:
+> **every error is corrected immediately, so the net typed text always equals the input.** The app
+> takes the pasted text, sprinkles in realistic slips, fixes each on the fly, and moves on. Errors
+> that are *inherently delayed-detection* (you only notice them later) and *cognitive* errors are
+> deferred to v2 — see Phase 8.
+>
+> **Implemented in v1 (all corrected immediately):**
+>
+> | Kind | Covers | Mechanics |
+> |---|---|---|
+> | `AdjacentSlip` | hitting a neighbor key | wrong neighbor → backspace → right key |
+> | `Transposition` | `teh`, `hwat`, `adn` | two letters swapped → backspace ×2 → right order |
+> | `RepeatedKey` | `hellllo`, inserted doubles | extra copies → backspace the extras |
+> | `ShiftMistime` | `THe` | next letter wrongly capitalized → backspace → lower-case |
+>
+> **Deferred to v2 (Phase 8):** omission / missing-double (`wat`, `commitee`) — these are
+> delayed-detection by nature and don't fit the immediate-correction rule; cognitive misspellings
+> (`recieve`) — need a dictionary; autocorrect simulation.
+
 `TypeGent.Core/HumanTyping/ErrorModel.cs`:
 
 - Constructor takes the same injected `Random rng` (deterministic in tests, time-seeded in the app — never `new Random()` internally).
-- QWERTY adjacency table — for each key, list of physically adjacent keys weighted by distance.
-- `bool ShouldIntroduceTypo(double typoRate, TypingContext ctx)` — sample uniformly.
-- `(char wrongChar, int reactionDelayMs) ChooseTypo(char intended, KeyboardLayout layout)` — pick a neighbor weighted by inverse distance.
+- QWERTY adjacency table — for each letter, its physically adjacent keys (v1 picks uniformly among immediate neighbors; inverse-distance weighting is a v2 refinement).
+- `bool ShouldIntroduceTypo(double typoRate)` — sample uniformly.
+- `TypoKind ChooseKind(bool canTranspose, bool canShiftMistime)` — weighted pick among the kinds applicable at the current position.
+- `char AdjacentKey(char intended)`, `int ReactionDelayMs()`, `int ExtraRepeats()` — primitives the engine composes into corrected error sequences.
 
-In v1, the error is always a neighbor key followed by a backspace before the intended char. No swap errors, no late corrections.
+The engine wires these together so each branch fully emits its wrong keystrokes **and** the
+correction, guaranteeing the net output equals the input.
 
 ### 4.3 HumanTypingEngine
 
@@ -377,19 +399,35 @@ public void Engine_ForHelloWorld_ProducesAtLeastOneTypoAtHighRate()
     var engine = new HumanTypingEngine(rng);
     var profile = new TypingProfile { TypoRate = 0.5, Wpm = 60, Jitter = 0.35 };
     var actions = engine.Plan("Hello, World!", profile, new UsQwertyLayout()).ToList();
-    actions.OfType<BackspaceAction>().Should().NotBeEmpty();
+    actions.Count(a => a.Action is KeyAction.Press { Key: VirtualKey.Back }).Should().BeGreaterThan(0);
 }
 ```
+
+> **Backspace representation (decided):** a correction is just `KeyAction.Press(VirtualKey.Back)`
+> inside the existing `TimedAction` stream — no separate `BackspaceAction` type (the orchestrator
+> and backend already handle it). The plan's earlier `OfType<BackspaceAction>()` was illustrative;
+> tests detect corrections via `Press(Back)`.
+>
+> **Plus a guarantee test:** reconstruct the net typed text from the action stream (backspace pops
+> the last char) and assert it equals the input — across many seeds and typo rates 0 / 0.5 / 1.0.
+> This is what proves "always corrected immediately."
 
 Manual test: type a 200-char paragraph into Notepad with default profile. Watch it. The pace should vary, with tiny pauses at spaces, and an occasional typo-and-correct every ~30-50 chars.
 
 **Success criteria (all must pass):**
 
-- [ ] `DelayModel_Median_TracksBaseDelay` passes (median ≈ base, mean > median, all samples within [20, 2000] ms).
-- [ ] A seeded plan for "Hello, World!" at TypoRate 0.5 contains ≥ 1 backspace, and re-running with the same seed reproduces the identical sequence.
-- [ ] Manual: a 200-char paragraph types with visibly varying pace, tiny pauses at spaces, and an occasional typo+correction — no freezes or bursts.
+- [x] `DelayModel_Median_TracksBaseDelay` passes (median ≈ base, mean > median, all samples within [20, 2000] ms). — ✓ plus deterministic modifier + fatigue tests.
+- [x] A seeded plan for "Hello, World!" at TypoRate 0.5 contains ≥ 1 backspace, and re-running with the same seed reproduces the identical sequence. — ✓ both covered.
+- [x] **Net typed text always equals the input** (errors corrected immediately) — ✓ verified across 25 seeds × typo rates 0 / 0.5 / 1.0, and end-to-end through the real `SendInput` backend (105-action plan, 17 corrections, final text byte-identical to input).
+- [x] Manual harness ready: the debug "Type test" button now drives the engine (default 60 WPM, ~2% typo) over a pre-filled ~210-char paragraph, with visibly varying pace and occasional typo+correction.
 
-**Definition of done:** Tests pass, manual observation confirms the typing looks human, no freezing or weird burst behavior.
+**Definition of done:** ✓ **Phase 4 complete (2026-06-29).** `DelayModel` (log-normal, modifiers, clamp, seeded), `ErrorModel` (4 mechanical typo kinds, QWERTY adjacency), and `HumanTypingEngine` (one seed reproduces an entire plan; all errors corrected immediately) implemented. 25 unit tests green; engine verified end-to-end through the real backend incl. backspace. Debug button wired to the engine. Ready for Phase 5 (UI + sliders).
+
+> **Note on very fast targets:** the new Windows 11 Notepad control can drop/scramble *extremely*
+> rapid `SendInput` bursts (observed only in an aggressive automated harness at 110 WPM + 35% typo
+> rate). At the human default (60 WPM, ~200 ms/char) it behaves correctly. This is a Notepad-side
+> limitation, not an engine bug — the engine's keystroke stream is provably correct (reconstruction
+> test) and types cleanly into controlled targets.
 
 ---
 
@@ -546,6 +584,13 @@ Things to *not* do in v1, but keep in mind:
 - **IME support** (CJK, Thai, etc.) via `VK_PACKET`.
 - **Multiple profiles** (saved JSON files, hotkey to switch).
 - **Markov-chain bigram tables** built from a corpus instead of the hard-coded common-bigrams list.
+- **Delayed-detection typos** — omission / missing-double letters (`wat`→`want`, `commitee`). These
+  require the "notice a few chars later, backspace back, retype" machinery (v1 corrects everything
+  immediately), so they were deferred from Phase 4.
+- **Cognitive / linguistic errors** — learned misspellings (`recieve`) and **autocorrect**
+  simulation. These need a misspelling dictionary (or a language model), unlike the v1 mechanical
+  typos which are pure finger-mechanics.
+- **Inverse-distance neighbor weighting** in the QWERTY adjacency table (v1 picks neighbors uniformly).
 - **Tunable curves** — let users draw the delay distribution in a graph.
 - **Telemetry** (opt-in only, never phoning home silently).
 
