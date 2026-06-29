@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using TypeGent.Core.Abstractions;
+using TypeGent.Core.Layouts;
 
 namespace TypeGent.Core.Typing;
 
@@ -41,5 +42,23 @@ public sealed class TypingOrchestrator(IKeyboardBackend backend, ILogger<TypingO
             _logger.LogTrace("Dispatching {Action}", timed.Action);
             await _backend.ExecuteAsync(timed.Action, ct).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>
+    /// Type <paramref name="text"/> through <paramref name="layout"/>, one character at a time,
+    /// waiting <paramref name="perCharDelay"/> before each. Each character is resolved to a
+    /// <see cref="KeyAction"/> via <see cref="KeyboardLayout.ToAction"/> — the VK-chord path for
+    /// characters the layout knows, the Unicode fallback for everything else.
+    /// <para>
+    /// Phase 3 uses a flat per-character delay; the realistic, varying timing model lands in Phase 4.
+    /// </para>
+    /// </summary>
+    public Task RunTextAsync(string text, KeyboardLayout layout, TimeSpan perCharDelay, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        ArgumentNullException.ThrowIfNull(layout);
+
+        var actions = text.Select(c => new TimedAction(perCharDelay, layout.ToAction(c)));
+        return RunAsync(actions, ct);
     }
 }

@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using NSubstitute;
 using TypeGent.Core.Abstractions;
+using TypeGent.Core.Layouts;
 using TypeGent.Core.Typing;
 using Xunit;
 
@@ -38,5 +39,25 @@ public class TypingOrchestratorTests
         received.Should().Equal(
             new KeyAction.Press(VirtualKey.H),
             new KeyAction.Press(VirtualKey.I));
+    }
+
+    [Fact]
+    public async Task RunTextAsync_RoutesVkChordAndUnicodeFallback_InOrder()
+    {
+        var backend = Substitute.For<IKeyboardBackend>();
+        var received = new List<KeyAction>();
+        backend
+            .ExecuteAsync(Arg.Do<KeyAction>(received.Add), Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+
+        var orchestrator = new TypingOrchestrator(backend);
+
+        // "H," exercises the Shift chord and the unshifted comma; 'é' hits the Unicode fallback.
+        await orchestrator.RunTextAsync("H,é", new UsQwertyLayout(), TimeSpan.Zero, CancellationToken.None);
+
+        received.Should().Equal(
+            new KeyAction.Chord(VirtualKey.Shift, VirtualKey.H),
+            new KeyAction.Press(VirtualKey.OEM_COMMA),
+            new KeyAction.Text("é"));
     }
 }

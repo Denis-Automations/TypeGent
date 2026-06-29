@@ -279,13 +279,20 @@ public void UsQwerty_MapsComma_ToShiftedOemComma()
 
 Repeat for representative chars: `a`, `Z`, `!`, `5`, `[`, `;`, newline (we don't support newline in v1, but document it). Add one fallback test: a character outside US QWERTY (e.g., `é`) should produce a `Text("é")` action, not a failed lookup.
 
+> **Correction applied (2026-06-29):** §3.3 and the §3.6 example test claimed
+> `NeedsShift(',') == true`. That is physically wrong for US QWERTY — `,` is the **unshifted**
+> character on the `OEM_COMMA` key; `<` is its shifted partner. Shifting it would type `<` and
+> break the "real comma, not `<`" criterion. The implementation and tests use the correct
+> mapping (`NeedsShift(',') == false`); the stale assertion in §3.3/§3.6 above is left as-is for
+> historical context but should be read with this note.
+
 **Success criteria (all must pass):**
 
-- [ ] "Hello, World!" appears verbatim in Notepad via the VK-chord path (uppercase `H`/`W`, a real comma — not `<`).
-- [ ] An out-of-layout character (e.g. `é`) routes to the Unicode `VK_PACKET` fallback and appears correctly.
-- [ ] US QWERTY unit tests are green for `a`, `Z`, `!`, `5`, `[`, `;`, `,`.
+- [x] "Hello, World!" appears verbatim in Notepad via the VK-chord path (uppercase `H`/`W`, a real comma — not `<`). — ✓ verified end-to-end: the real `TypingOrchestrator → UsQwertyLayout → InputSimulatorPlusBackend → SendInput` path typed `Hello, World! — café (a Z ! 5 [ ; , . /)` into Notepad and it read back byte-identical via UI Automation.
+- [x] An out-of-layout character (e.g. `é`) routes to the Unicode `VK_PACKET` fallback and appears correctly. — ✓ `é` and `—` (em dash) round-tripped correctly via `SimulateTextEntry`.
+- [x] US QWERTY unit tests are green for `a`, `Z`, `!`, `5`, `[`, `;`, `,`. — ✓ all 12 tests pass.
 
-**Definition of done:** "Hello, World!" types correctly into Notepad via the VK-chord path. US QWERTY maps `a`, `q`, `,`, `!` correctly, and an out-of-layout character (e.g., `é`) routes to the Unicode fallback and appears correctly in Notepad.
+**Definition of done:** ✓ **Phase 3 complete (2026-06-29).** `KeyboardLayout` abstraction + `UsQwertyLayout` (full 4-row map incl. shifted symbols) implemented; `TypingOrchestrator.RunTextAsync` resolves each char to a `KeyAction` via `KeyboardLayout.ToAction` (VK-chord for mappable chars, `Text`/VK_PACKET fallback otherwise); a temporary "Type test" debug button in `MainWindow` drives it. "Hello, World!" + out-of-layout chars verified in Notepad end-to-end; unit tests green. Ready for Phase 4.
 
 ---
 

@@ -2,6 +2,7 @@ using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using TypeGent.Core.Abstractions;
+using TypeGent.Core.Layouts;
 using TypeGent.Core.Typing;
 using TypeGent.Native;
 
@@ -27,6 +28,9 @@ public partial class App : Application
         // SendInput-based backend lives in TypeGent.Native and is swapped in here.
         services.AddSingleton<IKeyboardBackend, InputSimulatorPlusBackend>();
         services.AddSingleton<TypingOrchestrator>();
+
+        // v1 ships US QWERTY only; the abstraction lets v2 add more layouts later.
+        services.AddSingleton<KeyboardLayout, UsQwertyLayout>();
 
         services.AddSingleton<MainWindow>();
 
