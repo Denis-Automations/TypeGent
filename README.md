@@ -4,7 +4,7 @@ A human-like auto-typer for Windows. It types text into the focused window chara
 
 - **Stack:** C# / .NET 10, WPF (MVVM via CommunityToolkit.Mvvm), `SendInput` via InputSimulatorPlus.
 - **Target:** Windows 10 1809+ / Windows 11.
-- **Status:** Phase 3 complete. Types real keystrokes (US QWERTY + Unicode fallback) into the focused window via a temporary debug button. No human-timing model or real UI yet — those are Phases 4–5.
+- **Status:** Phase 4 complete. Types real keystrokes (US QWERTY + Unicode fallback) into the focused window with **human-like timing and self-correcting typos**, driven from a temporary debug button. The real UI (sliders, hotkey) is Phases 5–6.
 
 ## Documents
 
@@ -25,12 +25,13 @@ dotnet run --project src\TypeGent.App # launch the WPF window
 
 Only the **.NET 10 SDK** is required to build and run; Visual Studio is optional.
 
-## Test it yourself (Phase 3)
+## Test it yourself (Phase 4)
 
 Right now the app is a **debug harness**, not the finished tool: one text box, a **Type test**
 button, and a status line. Clicking the button counts down 3 seconds (so you can switch focus to
 your target), then types the text box contents into **whatever window is in the foreground** using
-real OS keystrokes.
+real OS keystrokes — now with **human-like timing and occasional typos that correct themselves**
+(default profile: 60 WPM, ~2% typo rate). The final text always matches what you pasted.
 
 ### Manual smoke test — type into Notepad
 
@@ -39,7 +40,7 @@ real OS keystrokes.
    ```powershell
    dotnet run --project src\TypeGent.App
    ```
-3. The text box is pre-filled with `Hello, World! — café`. Leave it or edit it.
+3. The text box is pre-filled with a ~210-char paragraph. Leave it or paste your own.
 4. Click **Type test**. The status shows a countdown: *"Switch to your target window… typing in 3 / 2 / 1"*.
 5. **During the countdown, click into the Notepad window** so it has focus.
 6. Watch the text appear in Notepad. The status returns to **Done.**
@@ -48,16 +49,17 @@ real OS keystrokes.
 
 - The text appears in **Notepad**, not back in TypeGent's text box. (If it lands in TypeGent, you
   didn't switch focus in time — try again.)
-- Capitals are correct: `H` and `W` are upper-case (typed as Shift chords).
-- The comma is a **real comma `,`** — *not* `<`. This is the key correctness check for the layout.
-- The out-of-layout characters **`—` (em dash)** and **`é`** appear correctly — these route through
-  the Unicode (`VK_PACKET`) fallback rather than the physical-key path.
-- Try your own text in the box (punctuation, digits, symbols like `! @ # [ ] ; / ?`) and confirm it
-  all comes out verbatim.
+- **The pace varies like a person** — slightly slower after spaces, faster on common letter pairs,
+  not a metronome.
+- **Occasional typos that fix themselves** — every ~50 characters you'll see a wrong key (or a
+  swapped/doubled/wrongly-capitalized letter) appear, get backspaced, and corrected. **The final
+  text always matches the input** — try a long paragraph and compare.
+- Capitals, a real comma `,` (not `<`), and out-of-layout characters like `—`/`é` (Unicode fallback)
+  all still come out correctly.
 
 ### Things that won't work yet (by design)
 
-- **Timing is flat** (~40 ms/char). Human-like varying pace + typos arrive in **Phase 4**.
+- **No sliders yet** — WPM / jitter / typo-rate are fixed at the default profile. Tuning UI arrives in **Phase 5**.
 - **No global hotkey / real UI** — you must use the debug button. Those land in **Phases 5–6**.
 - **Elevated targets:** a normal (non-admin) TypeGent can't type into an app running **as
   Administrator** (e.g. an elevated Notepad). That's a Windows security boundary; explicit handling

@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using TypeGent.Core.HumanTyping;
 using TypeGent.Core.Layouts;
 using TypeGent.Core.Typing;
 
@@ -41,9 +42,12 @@ public partial class MainWindow : Window
 
             StatusText.Text = "Typing…";
 
-            // ~40 ms/char keeps it observable and reliable; the realistic timing model is Phase 4.
-            await _orchestrator.RunTextAsync(
-                text, _layout, TimeSpan.FromMilliseconds(40), CancellationToken.None);
+            // Phase 4: drive the human-typing engine with a default profile. Sliders to tune
+            // WPM / typo rate arrive in Phase 5; for now the profile defaults are fixed.
+            var profile = new TypingProfile();
+            var engine = new HumanTypingEngine(new Random());
+            var actions = engine.Plan(text, profile, _layout);
+            await _orchestrator.RunAsync(actions, CancellationToken.None);
 
             StatusText.Text = "Done.";
         }

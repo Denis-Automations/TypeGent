@@ -17,7 +17,7 @@
         <TextBlock Grid.Row="0"
                    Margin="0,0,0,8"
                    TextWrapping="Wrap"
-                   Text="Phase 3 debug. Edit the text, click &quot;Type test&quot;, then switch focus to your target window (e.g. Notepad) during the 3-second countdown." />
+                   Text="Phase 4 debug. Edit the text, click &quot;Type test&quot;, then switch focus to your target window (e.g. Notepad) during the 3-second countdown. Typing uses the human engine (default 60 WPM, ~2% typo rate with immediate corrections); WPM / typo sliders arrive in Phase 5." />
 
         <TextBox Grid.Row="1"
                  x:Name="TextToType"
@@ -25,7 +25,7 @@
                  TextWrapping="Wrap"
                  VerticalScrollBarVisibility="Auto"
                  FontFamily="Consolas"
-                 Text="Hello, World! — café" />
+                 Text="The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs! TypeGent types like a human: with a natural rhythm, the occasional slip, and an immediate correction — then it keeps right on going." />
 
         <Button Grid.Row="2"
                 x:Name="TypeButton"
