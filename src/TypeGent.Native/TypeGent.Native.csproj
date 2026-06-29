@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- InputSimulatorPlus ships only .NET Framework TFMs (last updated 2022). The SendInput
+         surface we use is stable and Windows-only; this mismatch is expected and documented
+         in plan.md §2.2. Suppress the restore-compatibility warning rather than vendoring. -->
+    <NoWarn>$(NoWarn);NU1701</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="InputSimulatorPlus" Version="1.*" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TypeGent.Core\TypeGent.Core.csproj" />
+  </ItemGroup>
+
+</Project>
