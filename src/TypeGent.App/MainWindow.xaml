@@ -8,6 +8,7 @@
         xmlns:vm="clr-namespace:TypeGent.App.ViewModels"
         mc:Ignorable="d"
         Title="TypeGent" Height="560" Width="640" MinHeight="520" MinWidth="520"
+        Icon="Assets/TypeGent.ico"
         Topmost="{Binding Topmost}"
         d:DataContext="{d:DesignInstance vm:MainViewModel}">
 

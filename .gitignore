@@ -57,6 +57,7 @@ artifacts/
 # ---- Test / coverage ----
 [Tt]est[Rr]esult*/
 [Bb]uild[Ll]og.*
+coverage/
 *.coverage
 *.coveragexml
 coverage*.json

@@ -42,6 +42,24 @@ public class TypingOrchestratorTests
     }
 
     [Fact]
+    public async Task RunAsync_Cancellation_StopsPromptly()
+    {
+        var backend = Substitute.For<IKeyboardBackend>();
+        backend.ExecuteAsync(Arg.Any<KeyAction>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+
+        var orchestrator = new TypingOrchestrator(backend);
+        using var cts = new CancellationTokenSource();
+
+        var actions = Enumerable.Range(0, 100)
+            .Select(_ => new TimedAction(TimeSpan.FromMilliseconds(50), new KeyAction.Press(VirtualKey.A)));
+
+        cts.CancelAfter(TimeSpan.FromMilliseconds(80));
+        await Assert.ThrowsAsync<TaskCanceledException>(() => orchestrator.RunAsync(actions, cts.Token));
+
+        // The backend should have been called at most a couple of times before cancellation fired.
+        await backend.ReceivedWithAnyArgs(1).ExecuteAsync(default!, default);
+    }
+    [Fact]
     public async Task RunTextAsync_RoutesVkChordAndUnicodeFallback_InOrder()
     {
         var backend = Substitute.For<IKeyboardBackend>();

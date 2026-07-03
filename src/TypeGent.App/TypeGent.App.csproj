@@ -7,9 +7,19 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\TypeGent.ico</ApplicationIcon>
     <!-- NU1701 flows transitively from InputSimulatorPlus (via TypeGent.Native); see plan.md §2.2. -->
     <NoWarn>$(NoWarn);NU1701</NoWarn>
+    <!-- Single-file publish: bundle native WPF libs + content into the .exe so it's truly standalone. -->
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="Assets\TypeGent.ico" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.*" />
