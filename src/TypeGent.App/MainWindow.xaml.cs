@@ -8,10 +8,10 @@ namespace TypeGent.App;
 /// <summary>
 /// Interaction logic for MainWindow.xaml.
 /// <para>
-/// Phase 5: all behavior lives in <see cref="MainViewModel"/> (bound as the DataContext). The only
-/// code-behind is capturing our own window handle in <see cref="OnSourceInitialized"/> — the
-/// ViewModel uses it to refuse typing into TypeGent's own window. (The system-wide hotkey
-/// registration that also hooks in here arrives in Phase 6.)
+/// All behavior lives in <see cref="MainViewModel"/> (bound as the DataContext). The code-behind is
+/// minimal: <see cref="OnSourceInitialized"/> captures our own window handle (so the ViewModel can
+/// refuse typing into TypeGent's own window) and hands the HWND to <see cref="HotKeyManager"/> for
+/// system-wide hotkey registration; <see cref="OnClosed"/> unregisters it on shutdown.
 /// </para>
 /// </summary>
 public partial class MainWindow : Window
@@ -28,6 +28,14 @@ public partial class MainWindow : Window
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
-        _viewModel.OwnWindowHandle = new WindowInteropHelper(this).Handle;
+        var hwnd = new WindowInteropHelper(this).Handle;
+        _viewModel.OwnWindowHandle = hwnd;
+        _viewModel.InitializeHotKey(hwnd);
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _viewModel.Shutdown();
+        base.OnClosed(e);
     }
 }

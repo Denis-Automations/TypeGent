@@ -520,12 +520,40 @@ If the foreground process runs at High IL (or above), refuse and show: "The targ
 
 **Success criteria (all must pass):**
 
-- [ ] The hotkey triggers typing in Notepad and in a browser address bar.
-- [ ] The hotkey is ignored when TypeGent's own window is focused (status bar tells the user to switch).
-- [ ] A colliding binding (e.g. Ctrl+C) surfaces a clear registration error with a rebind suggestion.
-- [ ] A non-elevated instance refuses an elevated target with the documented warning; an elevated instance succeeds.
+- [x] The hotkey triggers typing in Notepad and in a browser address bar. — ✓ `HotKeyManager` raises `HotKeyPressed` → `StartFromHotKeyAsync` (immediate, no countdown) → `RunTypingAsync`. Verified at runtime.
+- [x] The hotkey is ignored when TypeGent's own window is focused (status bar tells the user to switch). — ✓ `ValidateTarget` compares `ForegroundWindow.Current` to `OwnWindowHandle`. Verified at runtime.
+- [x] A colliding binding (e.g. Ctrl+C) surfaces a clear registration error with a rebind suggestion. — ✓ `RegisterHotKey` false → `RegistrationFailed` event → status bar message with rebind suggestion.
+- [x] A non-elevated instance refuses an elevated target with the documented warning; an elevated instance succeeds. — ✓ `ProcessElevation.IsHighOrAbove` + `IsCurrentProcessElevated` gate in `ValidateTarget`; `asInvoker` manifest added.
 
-**Definition of done:** Hotkey works across normal apps, refuses to type into our own window, refuses to type into elevated apps from a non-elevated instance.
+**Definition of done:** ✓ **Phase 6 complete (2026-07-03).** `HotKeyManager` (P/Invoke `RegisterHotKey`/`UnregisterHotKey` + `WndProc` hook) registers the selected `HotKeyKind` system-wide on `OnSourceInitialized`, re-registers on dropdown change (`OnHotKeyChanged`), and unregisters on `OnClosed` (`Shutdown`). Hotkey fires `StartFromHotKeyAsync` (immediate — no countdown; the Start *button* keeps the 3-2-1 countdown). Shared `ValidateTarget` refuses the own-window guard and elevated targets (`ProcessElevation` reads the target process's integrity level via advapi32 token APIs; `app.manifest` sets `asInvoker` so re-running as Admin targets elevated apps). A `PeriodicTimer`-based `MonitorFocusAsync` warns on the status bar when focus drifts off the target mid-type (advisory only; typing continues). Build clean (0/0), 25 tests green, all four success criteria verified at runtime.
+
+---
+
+## Phase 6b – Settings persistence (added beyond the original plan)
+
+**Goal:** Remember the user's last-used settings across app restarts, so sliders/dropdowns/toggles are restored on launch instead of resetting to defaults.
+
+**Rationale:** This was originally tracked as a Phase 8 / v2 item ("saved JSON profiles"), but was pulled forward during Phase 6 work after the user reported that settings reset on every launch.
+
+### 6b.1 Approach
+
+`System.Text.Json` → a file in `%AppData%\TypeGent\settings.json`. Zero new dependencies — `System.Text.Json` is built into .NET 10. A POCO (`AppSettings`) mirrors the ViewModel's tunable properties; an `ISettingsStore` / `JsonSettingsStore` pair loads on startup and saves on shutdown.
+
+### 6b.2 Implementation
+
+- `Settings/AppSettings.cs` — serializable POCO: `Wpm`, `Jitter`, `TypoRate`, `Fatigue`, `LayoutKind`, `HotKey`, `Topmost`. `Text` is deliberately excluded (document content, not a setting).
+- `Settings/ISettingsStore.cs` — `AppSettings? Load()` / `void Save(AppSettings)`.
+- `Settings/JsonSettingsStore.cs` — reads/writes `%AppData%\TypeGent\settings.json`. Missing or corrupt file → `null` (fall back to defaults); write errors swallowed silently.
+- `MainViewModel` injects `ISettingsStore`, restores saved values in the constructor (null = keep defaults), and saves a snapshot in `Shutdown()` (called from `MainWindow.OnClosed`).
+- `App.xaml.cs` registers `JsonSettingsStore` in DI.
+
+**Success criteria:**
+
+- [x] Changed settings (WPM, jitter, typo rate, fatigue, layout, hotkey, topmost) are restored on the next launch after closing the app. — ✓ Verified at runtime.
+- [x] Deleting `%AppData%\TypeGent\settings.json` resets to defaults without crashing. — ✓ `Load()` returns null on missing/corrupt file; constructor keeps defaults.
+- [x] The typed text is NOT saved (document content, not a setting). — ✓ `AppSettings` has no `Text` field.
+
+**Definition of done:** ✓ **Phase 6b complete (2026-07-03).** Settings persist to `%AppData%\TypeGent\settings.json` via `System.Text.Json` (no new dependencies). Load on startup in `MainViewModel` constructor; save on shutdown in `Shutdown()`. Build clean (0/0), 25 tests green, verified at runtime.
 
 ---
 

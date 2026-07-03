@@ -1,0 +1,18 @@
+features are working. But do some text changes:
+change "Click into the target app first as TypeGent won't type into its own window." to
+"Click into the target app first as TypeGent won't type into its own window."
+
+change 
+"Warning: focus left 
+  the target window — typing continues into the focused app."
+to 
+"Warning: focus left 
+  the target window therefore typing continues into the focused app."
+
+About elevated: 
+Normal users might not know what elevated apps are. And also we should minimize explaining too much to the user.
+instead of; 
+"Status. The target app is running elevated. Said input cannot reach it from a non-elevated process. Rerun type agent as administrator to target elevated apps."
+
+Let it be;
+"Status. The target app is running as admin. TypeGent must run as admin for it to type to your target input field."

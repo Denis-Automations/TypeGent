@@ -20,7 +20,7 @@ A human-like auto-typer for Windows. It types text into the focused window chara
 ```powershell
 dotnet build                          # compile all projects (should be 0 warnings, 0 errors)
 dotnet test                           # run the unit test suite (should be all green)
-dotnet run --project src\TypeGent.App # launch the WPF window
+dotnet run --project src/TypeGent.App # launch the WPF window
 ```
 
 Only the **.NET 10 SDK** is required to build and run; Visual Studio is optional.

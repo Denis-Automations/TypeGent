@@ -1,6 +1,8 @@
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using TypeGent.App.Native;
+using TypeGent.App.Settings;
 using TypeGent.App.ViewModels;
 using TypeGent.Core.Abstractions;
 using TypeGent.Core.Layouts;
@@ -11,8 +13,8 @@ namespace TypeGent.App;
 
 /// <summary>
 /// Interaction logic for App.xaml. Builds the DI container by hand on startup and shows
-/// the main window. Phase 2 wires up just enough — the backend and the orchestrator — to
-/// prove the architecture composes; later phases register the engine, view models, etc.
+/// the main window. The App depends only on Core abstractions; the concrete SendInput-based
+/// backend lives in TypeGent.Native and is swapped in here.
 /// </summary>
 public partial class App : Application
 {
@@ -32,6 +34,12 @@ public partial class App : Application
 
         // v1 ships US QWERTY only; the abstraction lets v2 add more layouts later.
         services.AddSingleton<KeyboardLayout, UsQwertyLayout>();
+
+        // Phase 6: system-wide hotkey manager (registers/unregisters RegisterHotKey bindings).
+        services.AddSingleton<HotKeyManager>();
+
+        // Settings persistence: JSON file in %AppData%\TypeGent\settings.json.
+        services.AddSingleton<ISettingsStore, JsonSettingsStore>();
 
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();

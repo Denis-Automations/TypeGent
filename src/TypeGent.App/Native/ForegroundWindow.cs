@@ -4,10 +4,10 @@ using System.Runtime.InteropServices;
 namespace TypeGent.App.Native;
 
 /// <summary>
-/// Thin wrapper over <c>user32!GetForegroundWindow</c>. Phase 5 uses it for one check only:
-/// after the Start countdown, make sure the foreground window isn't TypeGent's own window, so
-/// we show a friendly "click into the target app first" message instead of typing into ourselves.
-/// The full target-window validation (elevation, focus-change detection) arrives in Phase 6.
+/// Thin wrapper over <c>user32!GetForegroundWindow</c>. Used by <see cref="MainViewModel"/> to
+/// capture the target window on start (and refuse typing into TypeGent's own window), by
+/// <see cref="ProcessElevation"/> to read the target's integrity level, and by the focus-drift
+/// monitor that warns the user if focus leaves the target mid-type.
 /// </summary>
 internal static class ForegroundWindow
 {
