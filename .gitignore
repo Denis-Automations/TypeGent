@@ -74,3 +74,9 @@ $RECYCLE.BIN/
 # ---- Tooling / local state (not for the repo) ----
 .claude/settings.local.json
 .commandcode/
+
+# ---- Planning / research docs (kept locally, not in the repo) ----
+plan.md
+Human-Like Windows Auto Typer – Research & Design Notes.md
+TypeGent – Findings, Architecture & Tech Stack.md
+TypeGent – Approach Review.md

@@ -8,6 +8,10 @@
          surface we use is stable and Windows-only; this mismatch is expected and documented
          in plan.md §2.2. Suppress the restore-compatibility warning rather than vendoring. -->
     <NoWarn>$(NoWarn);NU1701</NoWarn>
+    <!-- No .pdb in the published single-file exe (see TypeGent.App.csproj). Release only,
+         so Debug builds keep pdbs for coverlet line coverage in `dotnet test`. -->
+    <DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
+    <DebugSymbols Condition="'$(Configuration)' == 'Release'">false</DebugSymbols>
   </PropertyGroup>
 
   <ItemGroup>

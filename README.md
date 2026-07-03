@@ -1,84 +1,132 @@
-# TypeGent
+<p align="center">
+  <img src="assets/logo.png" alt="TypeGent logo" width="220" />
+</p>
 
-A human-like auto-typer for Windows. It types text into the focused window character-by-character with realistic timing (and optional typos + corrections) using OS-level keyboard input, rather than pasting it instantly.
+<h1 align="center">TypeGent</h1>
+
+<p align="center">A human-like auto-typer for Windows.</p>
+
+---
+
+TypeGent types text into whatever window you have focused, character-by-character, using OS-level
+keyboard input (`SendInput`) — with realistic human timing and occasional self-correcting typos —
+instead of pasting it instantly. The result reads like a real person at the keyboard, not a paste.
 
 - **Stack:** C# / .NET 10, WPF (MVVM via CommunityToolkit.Mvvm), `SendInput` via InputSimulatorPlus.
-- **Target:** Windows 10 1809+ / Windows 11.
-- **Status:** Phase 5 complete. Full WPF UI — text box, **WPM / jitter / typo-rate sliders, fatigue + always-on-top toggles, layout/hotkey dropdowns**, a live character count and `≈` time estimate, and **Start / Stop** (Stop and `Escape` cancel cleanly). Types real keystrokes (US QWERTY + Unicode fallback) into the focused window with **human-like timing and self-correcting typos**. The system-wide global hotkey + elevated-target handling are Phase 6.
+- **Target OS:** Windows 10 1809+ / Windows 11 (x64).
+- **Status:** ✅ **v1 complete.** All shipping phases done; 34 unit tests green; ships as a single
+  self-contained `.exe` (no prerequisites on the target machine).
 
-## Documents
+## Features
 
-| File | Purpose |
-|---|---|
-| [`plan.md`](plan.md) | Phased build plan with per-phase success criteria and self-checks. |
-| [`TypeGent – Findings, Architecture & Tech Stack.md`](TypeGent%20%E2%80%93%20Findings%2C%20Architecture%20%26%20Tech%20Stack.md) | Committed architecture and tech-stack decisions. |
-| [`TypeGent – Approach Review.md`](TypeGent%20%E2%80%93%20Approach%20Review.md) | Independent review that drove the current decisions. |
-| [`Human-Like Windows Auto Typer – Research & Design Notes.md`](Human-Like%20Windows%20Auto%20Typer%20%E2%80%93%20Research%20%26%20Design%20Notes.md) | Original research log (kept for provenance). |
+- **Human-like timing** — inter-keystroke delays are drawn from a log-normal distribution around
+  your target WPM, with small pauses at word boundaries, faster common letter-pairs, and a gentle
+  fatigue drift over long passages. It never types like a metronome.
+- **Self-correcting typos** — an optional, tunable typo rate introduces realistic mechanical slips
+  (adjacent-key hits, transpositions, doubled letters, mistimed shifts) and **immediately backspaces
+  and fixes each one**. The net typed text always equals your input, exactly.
+- **US QWERTY + Unicode fallback** — common characters are injected as genuine virtual-key + Shift
+  chords (indistinguishable from physical keystrokes); anything outside the layout (accents, em
+  dashes, emoji) falls back to Unicode `VK_PACKET` entry so arbitrary text still comes out correct.
+- **System-wide hotkey** — trigger typing into any focused app with a configurable global hotkey.
+- **Safety guards** — refuses to type into its own window, warns if focus drifts off the target
+  mid-run, and detects elevated (admin) targets that a non-elevated process can't reach.
+- **Live UI** — text box with live character count and an `≈` time estimate; sliders for speed,
+  jitter and typo rate; fatigue and always-on-top toggles; layout and hotkey dropdowns; Start/Stop
+  (both **Stop** and **Escape** cancel within one keystroke).
+- **Settings persistence** — your last-used profile is saved to `%AppData%\TypeGent\settings.json`
+  and restored on the next launch (typed text is never persisted).
 
-## Build & run
+## Requirements
+
+- **Build:** the [**.NET 10 SDK**](https://dotnet.microsoft.com/download/dotnet/10.0) is the only
+  requirement. Visual Studio is optional (VS Code + the `dotnet` CLI is sufficient).
+- **Run the published `.exe`:** nothing — the binary is self-contained and bundles the .NET runtime.
+
+## Project layout
+
+```
+src/
+  TypeGent.Core/    Timing + error models, layout abstraction, typing orchestrator (no UI, no P/Invoke)
+  TypeGent.Native/  IKeyboardBackend implementation over InputSimulatorPlus (SendInput)
+  TypeGent.App/     WPF app: MVVM view model, XAML UI, hotkey, elevation/focus guards, settings
+tests/
+  TypeGent.Tests/   xUnit suite (delay/error models, layout, orchestrator, engine)
+tools/
+  publish.ps1       One-command single-file publish
+  Generate-Icon.ps1 Icon generation helper
+assets/
+  logo.png          App logo (used in this README)
+```
+
+The App talks to the keyboard only through the `IKeyboardBackend` abstraction in Core, so the
+`SendInput` dependency is isolated in `TypeGent.Native` and swappable.
+
+## Build & run (development)
 
 ```powershell
-dotnet build                          # compile all projects (should be 0 warnings, 0 errors)
-dotnet test                           # run the unit test suite (should be all green)
+dotnet build                          # compile all projects (0 warnings, 0 errors)
+dotnet test                           # run the unit test suite (34 tests, all green)
 dotnet run --project src/TypeGent.App # launch the WPF window
 ```
 
-Only the **.NET 10 SDK** is required to build and run; Visual Studio is optional.
+## Build the distributable `.exe`
 
-## Test it yourself (Phase 5)
-
-The app now has its **real UI**: a text box, sliders for **Speed (WPM)**, **Jitter (σ)** and
-**Typo rate**, **Fatigue** and **Keep window on top** toggles, **Keyboard layout** + **Hotkey**
-dropdowns, a live **character count** and **≈ estimated time**, and **Start / Stop** buttons. The
-character count and time estimate update as you type or drag the WPM slider.
-
-Because the system-wide hotkey is still Phase 6, **Start** uses a 3-second countdown so you can
-focus your target window first, then types the text box contents into **whatever window is in the
-foreground** using the human engine with the profile you set. The final text always matches the input.
-
-### Manual smoke test — type into Notepad
-
-1. Open **Notepad** (`notepad.exe`) and leave it open.
-2. From the project folder, launch TypeGent:
-   ```powershell
-   dotnet run --project src\TypeGent.App
-   ```
-3. Type or paste some text. Watch **Characters** and **≈ estimated time** update live; drag **Speed (WPM)** and the estimate changes immediately.
-4. Set the sliders to taste (e.g. raise **Typo rate** to see more corrections).
-5. Click **Start**. The status shows a countdown: *"Switch to your target window… typing in 3 / 2 / 1"*.
-6. **During the countdown, click into the Notepad window** so it has focus.
-7. Watch the text appear in Notepad. The status returns to **Done.**
-
-**What to verify:**
-
-- The text appears in **Notepad**, not back in TypeGent's text box. (If you *don't* switch focus,
-  TypeGent detects its own window is in front and shows *"Click into the target app first…"* instead
-  of typing into itself — no crash.)
-- **Stop** (or pressing **Escape** while TypeGent is focused) halts typing within one keystroke.
-- **The pace varies like a person** — slightly slower after spaces, faster on common letter pairs,
-  not a metronome.
-- **Occasional typos that fix themselves** — you'll see a wrong key (or a
-  swapped/doubled/wrongly-capitalized letter) appear, get backspaced, and corrected. **The final
-  text always matches the input** — try a long paragraph and compare.
-- Capitals, a real comma `,` (not `<`), and out-of-layout characters like `—`/`é` (Unicode fallback)
-  all still come out correctly.
-
-### Things that won't work yet (by design)
-
-- **No global hotkey** — Start uses a countdown button; the system-wide hotkey (and a true global
-  `Escape`) land in **Phase 6**. The hotkey dropdown is bound but not yet registered.
-- **Other keyboard layouts** — the dropdown lists **US QWERTY** only; UK/AZERTY/Dvorak/Colemak are v2.
-- **Elevated targets:** a normal (non-admin) TypeGent can't type into an app running **as
-  Administrator** (e.g. an elevated Notepad). That's a Windows security boundary; explicit handling
-  comes in **Phase 6**.
-- **Games** that read raw scancodes (DirectInput/raw input) may ignore the Unicode-fallback
-  characters. Game compatibility is a non-goal.
-
-### Automated tests
+Produce a single-file, self-contained `win-x64` executable:
 
 ```powershell
-dotnet test
+powershell -ExecutionPolicy Bypass -File tools\publish.ps1
 ```
 
-Covers the orchestrator dispatch order, the US QWERTY mapping for representative characters
-(`a Z ! 5 [ ; ,`), the real-comma rule, and out-of-layout characters routing to the Unicode fallback.
+This runs `dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true` and
+writes the result to `publish\TypeGent.App.exe`.
+
+- **Output:** a single `publish\TypeGent.App.exe`, roughly **62 MB**, with **no sidecar files** —
+  the .NET runtime, native WPF libraries, and the app icon are all bundled into the one executable,
+  and `.pdb` debug symbols are excluded from the Release publish.
+- **Size note:** WPF does not support Native AOT and trims poorly, so a self-contained WPF binary is
+  expected to land in the ~60–150 MB range. If size matters more than portability, drop
+  `--self-contained` for a framework-dependent build (requires the .NET 10 Desktop Runtime on the
+  target machine).
+
+Copy `publish\TypeGent.App.exe` to any Windows 10 1809+ / Windows 11 x64 machine and run it — no
+install step required.
+
+## Usage
+
+1. Launch TypeGent (run the `.exe`, or `dotnet run --project src/TypeGent.App`).
+2. Type or paste your text into the text box and set the profile (speed, jitter, typo rate, etc.).
+3. Trigger typing one of two ways:
+   - **Start button** — begins a short 3-2-1 countdown; click into your target window before it ends.
+   - **Global hotkey** — focus your target window and press the configured hotkey; typing starts
+     immediately.
+4. Watch the text appear in the target app with human-like pacing and the occasional self-corrected
+   typo. Press **Stop** or **Escape** to halt within one keystroke.
+
+**Notes & limits:**
+
+- TypeGent won't type into its own window — click into the target app first.
+- To type into an app running **as administrator**, run TypeGent as administrator too (Windows
+  blocks input from a lower-privilege process to a higher one).
+- Games that read raw scancodes (DirectInput/raw input) may ignore Unicode-fallback characters;
+  game compatibility is a non-goal.
+
+## Testing
+
+```powershell
+dotnet test                                     # 34 tests
+dotnet test --collect:"XPlat Code Coverage"     # with line coverage on TypeGent.Core
+```
+
+The suite covers the log-normal delay model (median/shape/clamping), the error model (typo-kind
+selection, adjacency, probability gating), the US QWERTY layout (representative characters incl. the
+real-comma rule and Unicode fallback routing), orchestrator dispatch order and cancellation, and
+end-to-end engine planning — including the guarantee that reconstructed net text always equals the
+input across many seeds and typo rates.
+
+## Roadmap (v2 candidates)
+
+Deliberately out of scope for v1: additional keyboard layouts (UK QWERTY, AZERTY, Dvorak, Colemak),
+auto-detecting the target's layout, IME/CJK support, multiple saved profiles, corpus-based bigram
+timing, delayed-detection and cognitive (dictionary-based) typos, inverse-distance neighbor
+weighting, and opt-in telemetry.
