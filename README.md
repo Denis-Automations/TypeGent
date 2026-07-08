@@ -129,4 +129,7 @@ input across many seeds and typo rates.
 Deliberately out of scope for v1: additional keyboard layouts (UK QWERTY, AZERTY, Dvorak, Colemak),
 auto-detecting the target's layout, IME/CJK support, multiple saved profiles, corpus-based bigram
 timing, delayed-detection and cognitive (dictionary-based) typos, inverse-distance neighbor
-weighting, and opt-in telemetry.
+weighting, and opt-in telemetry. The phased v2 build plan lives in `planv2.md`, and the four
+invariants every v2 phase must preserve are documented in
+[`docs/v2-invariants.md`](docs/v2-invariants.md) (single injected RNG, net text == input, US QWERTY
+default, controlled-target verification).
