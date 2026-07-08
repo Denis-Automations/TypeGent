@@ -14,6 +14,12 @@ public enum TypoKind
 
     /// <summary>Type the key one or two extra times.</summary>
     RepeatedKey,
+
+    /// <summary>Skip the intended key entirely (v2 Phase 6). Always corrected via delayed detection.</summary>
+    Omission,
+
+    /// <summary>Type a double-letter pair only once (e.g. 'commitee' instead of 'committee') (v2 Phase 6).</summary>
+    MissingDouble,
 }
 
 /// <summary>
@@ -33,17 +39,19 @@ public sealed class ErrorModel
         => _rng.NextDouble() < (typoRate / Math.Max(0.1, currentPace));
 
     /// <summary>Pick a typo kind, weighted, among those applicable at this position.</summary>
-    public TypoKind ChooseKind(bool canTranspose, bool canShiftMistime)
+    public TypoKind ChooseKind(bool canTranspose, bool canShiftMistime, bool canMissDouble)
     {
-        // Measured mix (v2 Phase 5): substitution dominates.
-        // Normalized roughly for existing kinds: Sub 85%, Insert 6%, Transpose 2%, ShiftMistime 7%
+        // Measured mix (v2 Phase 5 & 6): substitution dominates.
+        // Omission and MissingDouble are less frequent than slips, but they happen.
         var weights = new List<(TypoKind Kind, double W)>
         {
-            (TypoKind.AdjacentSlip, 0.85),
-            (TypoKind.RepeatedKey, 0.06),
+            (TypoKind.AdjacentSlip, 0.84),
+            (TypoKind.RepeatedKey, 0.05),
+            (TypoKind.Omission, 0.03),
         };
-        if (canTranspose) weights.Add((TypoKind.Transposition, 0.02));
-        if (canShiftMistime) weights.Add((TypoKind.ShiftMistime, 0.07));
+        if (canTranspose) weights.Add((TypoKind.Transposition, 0.015));
+        if (canShiftMistime) weights.Add((TypoKind.ShiftMistime, 0.06));
+        if (canMissDouble) weights.Add((TypoKind.MissingDouble, 0.005));
 
         var total = weights.Sum(x => x.W);
         var r = _rng.NextDouble() * total;
@@ -116,6 +124,21 @@ public sealed class ErrorModel
 
     /// <summary>How many extra times a repeated key fires (mostly 1, sometimes 2).</summary>
     public int ExtraRepeats() => _rng.NextDouble() < 0.8 ? 1 : 2;
+
+    /// <summary>
+    /// How many characters the typist types *after* the error before noticing it (v2 Phase 6).
+    /// Roughly 40% immediate (0), 60% delayed.
+    /// </summary>
+    public int DetectionDelayChars()
+    {
+        var r = _rng.NextDouble();
+        if (r < 0.40) return 0; // immediate
+        if (r < 0.70) return 1;
+        if (r < 0.85) return 2;
+        if (r < 0.95) return 3;
+        if (r < 0.99) return 4;
+        return 5;
+    }
 
     // QWERTY physical neighbors per letter. v1 picks uniformly among immediate neighbors; true
     // inverse-distance weighting is a v2 refinement (plan.md Phase 8).

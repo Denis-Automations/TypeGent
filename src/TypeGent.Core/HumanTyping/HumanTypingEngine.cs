@@ -31,8 +31,8 @@ public sealed class HumanTypingEngine
         var backspace = new KeyAction.Press(VirtualKey.Back);
 
         var prev = '\0';
-        var typed = 0;
         var i = 0;
+        var retypingUntil = -1;
 
         // Scan ahead to get the word starting at 'start' (used for pre-word planning pause).
         static (int Length, bool IsCommon) WordInfo(string t, int start, char previous)
@@ -46,14 +46,14 @@ public sealed class HumanTypingEngine
             return (len, DelayModel.IsCommonWord(word));
         }
 
-        TypingContext Ctx(char c, char previous, int typedSoFar)
+        TypingContext Ctx(char c, char previous, int textIndex)
         {
-            var (wordLen, wordIsCommon) = WordInfo(text, i, previous);
+            var (wordLen, wordIsCommon) = WordInfo(text, textIndex, previous);
             return new()
             {
                 CurrentChar = c,
                 PreviousChar = previous,
-                CharsTypedSoFar = typedSoFar,
+                CharsTypedSoFar = textIndex,
                 NeedsShift = layout.CanMap(c) && layout.NeedsShift(c),
                 Fatigue = profile.Fatigue,
                 WarmUp = profile.WarmUp,
@@ -69,53 +69,74 @@ public sealed class HumanTypingEngine
         TimedAction Back(double delayMs) =>
             new(TimeSpan.FromMilliseconds(delayMs), backspace);
 
+        IEnumerable<TimedAction> DelayedCorrection(int delayChars, int errorTextSpan, int backspaceCount, char tempPrev, TypingContext errCtx)
+        {
+            for (var k = 0; k < delayChars; k++)
+            {
+                var textIdx = i + errorTextSpan + k;
+                var nextC = text[textIdx];
+                var nextCtx = Ctx(nextC, tempPrev, textIdx);
+                yield return Key(nextC, delays.SampleDelayMs(baseDelay, nextCtx));
+                tempPrev = nextC;
+            }
+            for (var k = 0; k < backspaceCount; k++)
+            {
+                var bsDelay = k == 0 ? errors.ReactionDelayMs() : delays.SampleDelayMs(baseDelay, errCtx) * 0.4;
+                yield return Back(bsDelay);
+            }
+        }
+
         while (i < text.Length)
         {
             var c = text[i];
-            var ctx = Ctx(c, prev, typed);
-            var eligible = char.IsLetter(c) && layout.CanMap(c);
+            var ctx = Ctx(c, prev, i);
+            var eligible = i >= retypingUntil && char.IsLetter(c) && layout.CanMap(c);
 
             if (eligible && errors.ShouldIntroduceTypo(profile.TypoRate, delays.CurrentPace))
             {
-                var canTranspose = i + 1 < text.Length
-                    && char.IsLetter(text[i + 1]) && layout.CanMap(text[i + 1]);
+                var canTranspose = i + 1 < text.Length && char.IsLetter(text[i + 1]) && layout.CanMap(text[i + 1]);
                 var canShiftMistime = char.IsUpper(prev) && char.IsLower(c);
+                var canMissDouble = i + 1 < text.Length && char.ToLowerInvariant(c) == char.ToLowerInvariant(text[i + 1]);
 
-                switch (errors.ChooseKind(canTranspose, canShiftMistime))
+                var kind = errors.ChooseKind(canTranspose, canShiftMistime, canMissDouble);
+                var delay = errors.DetectionDelayChars();
+
+                switch (kind)
                 {
                     case TypoKind.AdjacentSlip:
                     {
                         var wrong = errors.AdjacentKey(c, layout);
                         yield return Key(wrong, delays.SampleDelayMs(baseDelay, ctx));
-                        yield return Back(errors.ReactionDelayMs());
-                        yield return Key(c, delays.SampleDelayMs(baseDelay, ctx) * 0.8);
-                        prev = c; typed++; i++;
-                        break;
+                        
+                        var d = Math.Min(delay, text.Length - 1 - i);
+                        foreach (var a in DelayedCorrection(d, 1, d + 1, wrong, ctx)) yield return a;
+                        
+                        retypingUntil = i + 1 + d;
+                        break; // leaves i and prev unchanged so main loop re-types
                     }
 
                     case TypoKind.ShiftMistime:
                     {
-                        // Capitalize the letter that should have been lower-case, then fix it.
-                        yield return Key(char.ToUpperInvariant(c), delays.SampleDelayMs(baseDelay, ctx));
-                        yield return Back(errors.ReactionDelayMs());
-                        yield return Key(c, delays.SampleDelayMs(baseDelay, ctx) * 0.8);
-                        prev = c; typed++; i++;
+                        var wrong = char.ToUpperInvariant(c);
+                        yield return Key(wrong, delays.SampleDelayMs(baseDelay, ctx));
+                        
+                        var d = Math.Min(delay, text.Length - 1 - i);
+                        foreach (var a in DelayedCorrection(d, 1, d + 1, wrong, ctx)) yield return a;
+                        
+                        retypingUntil = i + 1 + d;
                         break;
                     }
 
                     case TypoKind.Transposition:
                     {
                         var c2 = text[i + 1];
-                        // Type the pair in the wrong order...
                         yield return Key(c2, delays.SampleDelayMs(baseDelay, ctx));
-                        yield return Key(c, delays.SampleDelayMs(baseDelay, Ctx(c, c2, typed)));
-                        // ...notice, delete both...
-                        yield return Back(errors.ReactionDelayMs());
-                        yield return Back(delays.SampleDelayMs(baseDelay, ctx) * 0.4);
-                        // ...and retype correctly.
-                        yield return Key(c, delays.SampleDelayMs(baseDelay, ctx) * 0.8);
-                        yield return Key(c2, delays.SampleDelayMs(baseDelay, Ctx(c2, c, typed + 1)) * 0.8);
-                        prev = c2; typed += 2; i += 2;
+                        yield return Key(c, delays.SampleDelayMs(baseDelay, Ctx(c, c2, i + 1)));
+                        
+                        var d = Math.Min(delay, text.Length - 2 - i);
+                        foreach (var a in DelayedCorrection(d, 2, d + 2, c, ctx)) yield return a;
+                        
+                        retypingUntil = i + 2 + d;
                         break;
                     }
 
@@ -125,9 +146,35 @@ public sealed class HumanTypingEngine
                         var extra = errors.ExtraRepeats();
                         for (var k = 0; k < extra; k++)
                             yield return Key(c, delays.SampleDelayMs(baseDelay, ctx) * 0.5);
-                        for (var k = 0; k < extra; k++)
-                            yield return Back(k == 0 ? errors.ReactionDelayMs() : delays.SampleDelayMs(baseDelay, ctx) * 0.4);
-                        prev = c; typed++; i++;
+                        
+                        var d = Math.Min(delay, text.Length - 1 - i);
+                        foreach (var a in DelayedCorrection(d, 1, d + extra, c, ctx)) yield return a;
+                        
+                        retypingUntil = i + 1 + d;
+                        prev = c;
+                        i++;
+                        break;
+                    }
+
+                    case TypoKind.Omission:
+                    {
+                        var d = Math.Min(delay == 0 ? 1 : delay, text.Length - 1 - i);
+                        // We skip 'c' entirely. Wait for 'd' chars, backspace 'd' times.
+                        foreach (var a in DelayedCorrection(d, 1, d, prev, ctx)) yield return a;
+                        
+                        retypingUntil = i + 1 + d;
+                        break;
+                    }
+
+                    case TypoKind.MissingDouble:
+                    {
+                        // e.g. 'm' 'm' (at i, i+1). User types 'm', skips the second 'm'.
+                        yield return Key(c, delays.SampleDelayMs(baseDelay, ctx));
+                        
+                        var d = Math.Min(delay == 0 ? 1 : delay, text.Length - 2 - i);
+                        foreach (var a in DelayedCorrection(d, 2, d + 1, c, ctx)) yield return a;
+                        
+                        retypingUntil = i + 2 + d;
                         break;
                     }
                 }
@@ -135,7 +182,8 @@ public sealed class HumanTypingEngine
             else
             {
                 yield return Key(c, delays.SampleDelayMs(baseDelay, ctx));
-                prev = c; typed++; i++;
+                prev = c;
+                i++;
             }
         }
     }

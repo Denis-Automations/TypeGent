@@ -33,18 +33,20 @@ public class ErrorModelTests
 
         for (var i = 0; i < 100; i++)
         {
-            var kind = model.ChooseKind(canTranspose: false, canShiftMistime: false);
-            kind.Should().BeOneOf(TypoKind.AdjacentSlip, TypoKind.RepeatedKey);
+            var kind = model.ChooseKind(canTranspose: false, canShiftMistime: false, canMissDouble: false);
+            kind.Should().BeOneOf(TypoKind.AdjacentSlip, TypoKind.RepeatedKey, TypoKind.Omission);
         }
 
         for (var i = 0; i < 100; i++)
         {
-            var kind = model.ChooseKind(canTranspose: true, canShiftMistime: true);
+            var kind = model.ChooseKind(canTranspose: true, canShiftMistime: true, canMissDouble: true);
             kind.Should().BeOneOf(
                 TypoKind.AdjacentSlip,
                 TypoKind.RepeatedKey,
                 TypoKind.Transposition,
-                TypoKind.ShiftMistime);
+                TypoKind.ShiftMistime,
+                TypoKind.Omission,
+                TypoKind.MissingDouble);
         }
     }
 
