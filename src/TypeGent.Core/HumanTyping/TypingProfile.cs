@@ -18,6 +18,25 @@ public sealed class TypingProfile
     public bool Fatigue { get; init; } = true;
 
     /// <summary>
+    /// Whether an early warm-up ramp makes the first ~40 chars slightly slower, decaying to 1.0
+    /// (v2 Phase 1). Deterministic (no RNG draw), so it is on by default without affecting
+    /// seeded reproducibility.
+    /// </summary>
+    public bool WarmUp { get; init; } = true;
+
+    /// <summary>
+    /// Per-character probability of an attention lapse — a one-off 1.5–4 s stall (v2 Phase 1).
+    /// Defaults to 0 so seeded plans keep a stable RNG draw order; the app enables it.
+    /// </summary>
+    public double LapseRate { get; init; } = 0.0;
+
+    /// <summary>Minimum lapse duration in ms (v2 Phase 1).</summary>
+    public double LapseMinMs { get; init; } = 1500;
+
+    /// <summary>Maximum lapse duration in ms (v2 Phase 1).</summary>
+    public double LapseMaxMs { get; init; } = 4000;
+
+    /// <summary>
     /// The median inter-key interval implied by <see cref="Wpm"/>: 60000 / (Wpm * 5).
     /// At 60 WPM this is 200 ms.
     /// </summary>

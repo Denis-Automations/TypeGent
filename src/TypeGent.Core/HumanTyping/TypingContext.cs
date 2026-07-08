@@ -21,4 +21,10 @@ public sealed class TypingContext
 
     /// <summary>Whether the fatigue modifier is enabled for this run.</summary>
     public bool Fatigue { get; init; } = true;
+
+    /// <summary>
+    /// Whether the warm-up ramp is enabled for this run (v2 Phase 1). Defaults to <c>false</c> so a
+    /// default-constructed context stays neutral for timing tests.
+    /// </summary>
+    public bool WarmUp { get; init; }
 }

@@ -41,6 +41,7 @@ public sealed class HumanTypingEngine
             CharsTypedSoFar = typedSoFar,
             NeedsShift = layout.CanMap(c) && layout.NeedsShift(c),
             Fatigue = profile.Fatigue,
+            WarmUp = profile.WarmUp,
         };
 
         TimedAction Key(char c, double delayMs) =>

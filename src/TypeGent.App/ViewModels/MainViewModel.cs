@@ -278,6 +278,8 @@ public partial class MainViewModel : ObservableObject
             Jitter = Jitter,
             TypoRate = TypoRate,
             Fatigue = Fatigue,
+            WarmUp = true,
+            LapseRate = 0.005,
         };
 
         // Time-seeded RNG in the app (deterministic seeds are for tests). v1 has one layout.
