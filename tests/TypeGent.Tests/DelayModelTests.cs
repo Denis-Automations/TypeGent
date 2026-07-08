@@ -144,4 +144,48 @@ public class DelayModelTests
         // 5% of 4000 = 200; generous binomial tolerance.
         lapses.Should().BeInRange(120, 320);
     }
+
+    // --- v2 Phase 2: autocorrelated pace (AR(1)) ---
+
+    private static double Lag1Autocorrelation(IReadOnlyList<double> xs)
+    {
+        var n = xs.Count;
+        if (n < 2) return 0;
+        var mean = xs.Average();
+        double num = 0;
+        for (var i = 0; i < n - 1; i++)
+            num += (xs[i] - mean) * (xs[i + 1] - mean);
+        double den = 0;
+        for (var i = 0; i < n; i++)
+            den += (xs[i] - mean) * (xs[i] - mean);
+        return den == 0 ? 0 : num / den;
+    }
+
+    [Fact]
+    public void Pace_WhenEnabled_InducesPositiveLag1Autocorrelation()
+    {
+        // Low jitter so the AR(1) pace signal is clearly visible above per-key noise. Neutral
+        // context (no fatigue/warm-up) so pace is the ONLY source of autocorrelation.
+        var model = new DelayModel(new Random(1234), jitter: 0.1, paceSigma: 0.3);
+        var ctx = new TypingContext { Pace = true, Fatigue = false };
+
+        var samples = Enumerable.Range(0, 5000)
+            .Select(_ => model.SampleDelayMs(100, ctx)).ToList();
+
+        var r1 = Lag1Autocorrelation(samples);
+        r1.Should().BeGreaterThan(0.15, "AR(1) pace should induce clearly positive lag-1 autocorrelation");
+    }
+
+    [Fact]
+    public void Pace_WhenDisabled_HasNearZeroAutocorrelation()
+    {
+        var model = new DelayModel(new Random(1234), jitter: 0.1, paceSigma: 0.3);
+        var ctx = new TypingContext { Pace = false, Fatigue = false };
+
+        var samples = Enumerable.Range(0, 5000)
+            .Select(_ => model.SampleDelayMs(100, ctx)).ToList();
+
+        var r1 = Lag1Autocorrelation(samples);
+        r1.Should().BeInRange(-0.10, 0.10, "i.i.d. log-normal samples should have ~0 autocorrelation");
+    }
 }

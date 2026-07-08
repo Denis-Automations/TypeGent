@@ -279,6 +279,7 @@ public partial class MainViewModel : ObservableObject
             TypoRate = TypoRate,
             Fatigue = Fatigue,
             WarmUp = true,
+            Pace = true,
             LapseRate = 0.005,
         };
 

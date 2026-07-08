@@ -25,7 +25,7 @@ public sealed class HumanTypingEngine
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentNullException.ThrowIfNull(layout);
 
-        var delays = new DelayModel(_rng, profile.Jitter);
+        var delays = new DelayModel(_rng, profile.Jitter, profile.LapseRate, profile.LapseMinMs, profile.LapseMaxMs, profile.PaceSigma);
         var errors = new ErrorModel(_rng);
         var baseDelay = profile.BaseDelayMs;
         var backspace = new KeyAction.Press(VirtualKey.Back);
@@ -42,6 +42,7 @@ public sealed class HumanTypingEngine
             NeedsShift = layout.CanMap(c) && layout.NeedsShift(c),
             Fatigue = profile.Fatigue,
             WarmUp = profile.WarmUp,
+            Pace = profile.Pace,
         };
 
         TimedAction Key(char c, double delayMs) =>

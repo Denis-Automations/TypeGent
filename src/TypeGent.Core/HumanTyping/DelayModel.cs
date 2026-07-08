@@ -42,15 +42,22 @@ public sealed class DelayModel
     private readonly double _lapseRate;
     private readonly double _lapseMinMs;
     private readonly double _lapseMaxMs;
+    private readonly double _paceSigma;
+
+    // AR(1) pace state (v2 Phase 2, §2.1). Carries across calls within one plan so IKIs are
+    // positively autocorrelated. Starts at 1.0 (no drift); a fresh DelayModel per Plan() resets it.
+    private double _pace = 1.0;
+    private const double PacePersistence = 0.9;
 
     public DelayModel(Random rng, double jitter = 0.35, double lapseRate = 0.0,
-        double lapseMinMs = 1500, double lapseMaxMs = 4000)
+        double lapseMinMs = 1500, double lapseMaxMs = 4000, double paceSigma = 0.3)
     {
         _rng = rng ?? throw new ArgumentNullException(nameof(rng));
         _jitter = jitter;
         _lapseRate = lapseRate;
         _lapseMinMs = lapseMinMs;
         _lapseMaxMs = lapseMaxMs;
+        _paceSigma = paceSigma;
     }
 
     /// <summary>
@@ -72,10 +79,19 @@ public sealed class DelayModel
         if (ctx.Fatigue) delay *= 1.0 + 0.0005 * ctx.CharsTypedSoFar;             // fatigue
         if (ctx.WarmUp) delay *= 1.0 + 0.20 * Math.Exp(-ctx.CharsTypedSoFar / 40.0); // warm-up ramp (§1.3)
 
+        // AR(1) autocorrelated pace (§2.1): pace drifts in slow runs so IKIs are positively
+        // autocorrelated instead of i.i.d. Stateful — _pace carries across calls within a plan.
+        // Skipped when ctx.Pace is false so seeded plans keep a stable RNG draw order. Draw order
+        // per call (all features on): [log-normal Gaussian] → [pace Gaussian] → [lapse roll].
+        if (ctx.Pace)
+        {
+            _pace = PacePersistence * _pace + (1 - PacePersistence) * (1.0 + _paceSigma * NextGaussian());
+            delay *= _pace;
+        }
+
         delay = Math.Clamp(delay, FloorMs, MaxDelayMs);
 
-        // Attention lapse (§1.5): the only RNG draw beyond the Gaussian. Skipped when the rate is
-        // 0 so seeded plans keep a stable draw order.
+        // Attention lapse (§1.5): skipped when the rate is 0 so seeded plans keep a stable draw order.
         if (_lapseRate > 0 && _rng.NextDouble() < _lapseRate)
             delay += _lapseMinMs + _rng.NextDouble() * (_lapseMaxMs - _lapseMinMs);
 

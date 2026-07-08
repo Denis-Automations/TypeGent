@@ -25,6 +25,16 @@ public sealed class TypingProfile
     public bool WarmUp { get; init; } = true;
 
     /// <summary>
+    /// Whether inter-key pace drifts autocorrelated (AR(1)) across the run — bursts of faster and
+    /// slower typing instead of i.i.d. rerolls every key (v2 Phase 2). Defaults to <c>false</c> so
+    /// seeded plans keep a stable RNG draw order; the app enables it.
+    /// </summary>
+    public bool Pace { get; init; }
+
+    /// <summary>The standard deviation of the AR(1) pace innovation (v2 Phase 2). Higher = driftier.</summary>
+    public double PaceSigma { get; init; } = 0.3;
+
+    /// <summary>
     /// Per-character probability of an attention lapse — a one-off 1.5–4 s stall (v2 Phase 1).
     /// Defaults to 0 so seeded plans keep a stable RNG draw order; the app enables it.
     /// </summary>

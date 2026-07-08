@@ -66,6 +66,19 @@ public class HumanTypingEngineTests
         second.Should().Equal(first);
     }
 
+    [Fact]
+    public void SameSeed_WithPace_ReproducesIdenticalPlan()
+    {
+        // Pace adds a per-call AR(1) Gaussian draw — this proves the draw order stays stable
+        // (docs/v2-invariants.md §1) even with the extra RNG consumer active.
+        var profile = new TypingProfile { TypoRate = 0.3, Wpm = 75, Jitter = 0.4, Pace = true };
+
+        var first = new HumanTypingEngine(new Random(99)).Plan("The quick brown fox.", profile, Layout).ToList();
+        var second = new HumanTypingEngine(new Random(99)).Plan("The quick brown fox.", profile, Layout).ToList();
+
+        second.Should().Equal(first);
+    }
+
     [Theory]
     [InlineData(0.0)]
     [InlineData(0.5)]

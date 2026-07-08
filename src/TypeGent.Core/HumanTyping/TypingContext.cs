@@ -27,4 +27,10 @@ public sealed class TypingContext
     /// default-constructed context stays neutral for timing tests.
     /// </summary>
     public bool WarmUp { get; init; }
+
+    /// <summary>
+    /// Whether the autocorrelated AR(1) pace envelope is enabled for this run (v2 Phase 2).
+    /// Defaults to <c>false</c> so a default-constructed context stays neutral for timing tests.
+    /// </summary>
+    public bool Pace { get; init; }
 }
