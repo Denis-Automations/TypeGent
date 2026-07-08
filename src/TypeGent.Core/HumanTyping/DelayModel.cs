@@ -94,6 +94,12 @@ public sealed class DelayModel
     private double _pace = 1.0;
     private const double PacePersistence = 0.9;
 
+    /// <summary>
+    /// The current AR(1) pace multiplier. Exposed so <see cref="ErrorModel"/> can couple
+    /// typo probability to typing speed (v2 Phase 5).
+    /// </summary>
+    public double CurrentPace => _pace;
+
     public DelayModel(Random rng, double jitter = 0.35, double lapseRate = 0.0,
         double lapseMinMs = 1500, double lapseMaxMs = 4000, double paceSigma = 0.3)
     {

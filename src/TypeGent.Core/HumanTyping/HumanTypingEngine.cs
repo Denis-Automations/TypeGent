@@ -75,7 +75,7 @@ public sealed class HumanTypingEngine
             var ctx = Ctx(c, prev, typed);
             var eligible = char.IsLetter(c) && layout.CanMap(c);
 
-            if (eligible && errors.ShouldIntroduceTypo(profile.TypoRate))
+            if (eligible && errors.ShouldIntroduceTypo(profile.TypoRate, delays.CurrentPace))
             {
                 var canTranspose = i + 1 < text.Length
                     && char.IsLetter(text[i + 1]) && layout.CanMap(text[i + 1]);
@@ -85,7 +85,7 @@ public sealed class HumanTypingEngine
                 {
                     case TypoKind.AdjacentSlip:
                     {
-                        var wrong = errors.AdjacentKey(c);
+                        var wrong = errors.AdjacentKey(c, layout);
                         yield return Key(wrong, delays.SampleDelayMs(baseDelay, ctx));
                         yield return Back(errors.ReactionDelayMs());
                         yield return Key(c, delays.SampleDelayMs(baseDelay, ctx) * 0.8);
