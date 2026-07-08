@@ -14,12 +14,12 @@ public class HumanTypingEngineTests
     private static readonly UsQwertyLayout Layout = new();
 
     // Reconstruct the net typed text by "executing" the action stream: backspace pops the last
-    // char, every other action appends what it produces. Used to prove errors are always corrected.
-    private static string Reconstruct(IEnumerable<TimedAction> actions)
+    // char, every other action appends what it produces. Internal so Phase 4+ tests can reuse it.
+    internal static string Reconstruct(IEnumerable<TimedAction> actions, KeyboardLayout layout)
     {
         var reverse = new Dictionary<KeyAction, char>();
-        foreach (var ch in Layout.SupportedChars)
-            reverse[Layout.ToAction(ch)] = ch;
+        foreach (var ch in layout.SupportedChars)
+            reverse[layout.ToAction(ch)] = ch;
 
         var sb = new StringBuilder();
         foreach (var t in actions)
@@ -91,7 +91,7 @@ public class HumanTypingEngineTests
         {
             var profile = new TypingProfile { TypoRate = typoRate, Wpm = 65, Jitter = 0.35 };
             var actions = new HumanTypingEngine(new Random(seed)).Plan(input, profile, Layout);
-            Reconstruct(actions).Should().Be(input, $"seed {seed} at typoRate {typoRate}");
+            Reconstruct(actions, Layout).Should().Be(input, $"seed {seed} at typoRate {typoRate}");
         }
     }
 
@@ -115,6 +115,6 @@ public class HumanTypingEngineTests
 
         var actions = new HumanTypingEngine(new Random(7)).Plan(input, profile, Layout);
 
-        Reconstruct(actions).Should().Be(input);
+        Reconstruct(actions, Layout).Should().Be(input);
     }
 }

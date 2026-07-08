@@ -42,4 +42,20 @@ public sealed class TypingContext
     /// the biomechanical modifier is skipped, so tests that don't set it stay neutral.
     /// </summary>
     public KeyboardLayout? Layout { get; init; }
+
+    /// <summary>
+    /// Length of the word starting at <see cref="CurrentChar"/> (v2 Phase 4, §2.3). Used when
+    /// <see cref="PreviousChar"/> is a space or '\0' to scale the pre-word planning pause by
+    /// upcoming word length. Zero means "not at a word boundary" or "no lookahead" — the
+    /// legacy flat ×1.5 multiplier is used in that case, keeping all prior tests intact.
+    /// </summary>
+    public int NextWordLength { get; init; }
+
+    /// <summary>
+    /// Whether the upcoming word (of length <see cref="NextWordLength"/>) is in the high-
+    /// frequency common-word list (v2 Phase 4). Common words require less planning time
+    /// and receive a smaller pre-word pause than rare or unfamiliar words.
+    /// Only meaningful when <see cref="NextWordLength"/> > 0.
+    /// </summary>
+    public bool NextWordIsCommon { get; init; }
 }

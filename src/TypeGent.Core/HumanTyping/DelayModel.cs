@@ -37,6 +37,51 @@ public sealed class DelayModel
         "vq", "qv", "bv", "vb", "pq", "qp", "gq", "qg", "mx", "xm",
     };
 
+    // High-frequency English words that need less pre-word planning time (v2 Phase 4, §2.3).
+    // Covers ~65 % of tokens in typical running text. Case-insensitive comparison.
+    private static readonly HashSet<string> CommonWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // Top function words / pronouns
+        "i", "a", "an", "the", "and", "or", "but", "nor", "so", "yet",
+        "in", "on", "at", "to", "of", "for", "by", "as", "up", "out",
+        "if", "no", "not", "is", "am", "are", "was", "were", "be", "been",
+        "do", "did", "has", "had", "will", "can", "may", "let", "get", "got",
+        "he", "she", "it", "we", "you", "they", "me", "him", "her", "us",
+        "my", "his", "its", "our", "your", "one", "all", "who", "than",
+        // Very high-frequency verbs
+        "say", "said", "see", "saw", "come", "came", "go", "went", "make",
+        "made", "know", "knew", "take", "took", "give", "gave", "look",
+        "want", "use", "find", "tell", "ask", "seem", "feel", "try", "call",
+        "keep", "put", "set", "run", "ran", "hold", "move", "show", "send",
+        "read", "lose", "pass", "stop", "turn", "open", "help", "play",
+        "live", "need", "work", "like", "think", "have",
+        // Very high-frequency adjectives / adverbs
+        "very", "well", "just", "now", "how", "new", "old", "few", "big",
+        "good", "bad", "own", "long", "more", "most", "much", "many",
+        "such", "even", "still", "too", "also", "only", "once", "never",
+        "back", "off", "away", "down", "here", "there", "then", "when",
+        "why", "each", "both", "same", "last", "next", "high", "free",
+        "real", "true", "full", "sure", "right", "left", "near", "far",
+        // Very high-frequency nouns
+        "man", "men", "day", "way", "two", "eye", "lot", "end", "bit",
+        "time", "year", "part", "word", "face", "life", "home", "hand",
+        "side", "body", "head", "door", "room", "line", "city", "fact",
+        "idea", "case", "name", "form", "kind", "mind", "size", "role",
+        // Common connectives / discourse words
+        "that", "this", "what", "with", "from", "they", "some", "into",
+        "over", "after", "about", "which", "their", "there", "would", "could",
+        "should", "these", "those", "other", "where", "while", "being",
+        "through", "before", "around", "without", "another", "because",
+        "always", "really", "quite", "every", "maybe", "again", "often",
+        "almost", "early", "short", "small", "great", "first", "large",
+        "thing", "point", "place", "world", "people", "state", "night",
+        "water", "story", "power", "money", "group", "begin", "under",
+        "might", "along", "whose", "though", "since", "either", "within",
+        "little", "anyone", "number", "second", "better", "something",
+        "nothing", "someone", "everyone", "together", "however", "already",
+        "perhaps", "between", "certain", "different", "anything",
+    };
+
     private readonly Random _rng;
     private readonly double _jitter;
     private readonly double _lapseRate;
@@ -74,7 +119,7 @@ public sealed class DelayModel
 
         // Deterministic context modifiers (no RNG draws — order-independent).
         if (ctx.NeedsShift) delay *= 1.15;                                        // shift reach
-        delay *= BoundaryMultiplier(ctx.PreviousChar);                            // word/punct/sentence (§1.2)
+        delay *= BoundaryMultiplier(ctx);                               // word/punct/sentence (§1.2 + §2.3)
         delay *= BigramMultiplier(ctx.PreviousChar, ctx.CurrentChar);             // familiarity (§1.1)
         if (ctx.Fatigue) delay *= 1.0 + 0.0005 * ctx.CharsTypedSoFar;             // fatigue
         if (ctx.WarmUp) delay *= 1.0 + 0.20 * Math.Exp(-ctx.CharsTypedSoFar / 40.0); // warm-up ramp (§1.3)
@@ -99,13 +144,38 @@ public sealed class DelayModel
         return delay;
     }
 
-    private static double BoundaryMultiplier(char prev)
+    /// <summary>
+    /// Returns true if <paramref name="word"/> (lowercase) is in the high-frequency common-word
+    /// list used by the pre-word planning-pause formula (v2 Phase 4).
+    /// </summary>
+    public static bool IsCommonWord(string word) => CommonWords.Contains(word);
+
+    private static double BoundaryMultiplier(TypingContext ctx)
     {
-        if (prev == ' ') return 1.5;                                  // word boundary (kept from v1)
-        if (prev == ',' || prev == ';' || prev == ':') return 1.8;    // light punctuation pause
-        if (prev == '.' || prev == '!' || prev == '?') return 3.0;    // sentence boundary
-        if (prev == '\n' || prev == '\r') return 5.0;                 // paragraph / line break
+        var prev = ctx.PreviousChar;
+        if (prev == ' ')  return PlanningPauseMultiplier(ctx);          // word boundary (§2.3)
+        if (prev == ',' || prev == ';' || prev == ':') return 1.8;      // light punctuation pause
+        if (prev == '.' || prev == '!' || prev == '?') return 3.0;      // sentence boundary
+        if (prev == '\n' || prev == '\r') return 5.0;                   // paragraph / line break
         return 1.0;
+    }
+
+    /// <summary>
+    /// Planning-pause multiplier for the character that immediately follows a space (v2 Phase 4,
+    /// §2.3). Scales with the upcoming word's length and rarity:
+    /// <code>
+    ///   multiplier = 1.0 + 0.06 × wordLength  [+0.3 if rare]  clamped to [1.0, 3.5]
+    /// </code>
+    /// Examples: "the" (3, common) → ×1.18 | "quick" (5, rare) → ×1.60 | 16-letter rare → ×2.26.
+    /// When <see cref="TypingContext.NextWordLength"/> is 0 (no lookahead supplied) the legacy
+    /// flat ×1.5 is used so existing tests that don't set word-context stay green.
+    /// </summary>
+    private static double PlanningPauseMultiplier(TypingContext ctx)
+    {
+        if (ctx.NextWordLength == 0) return 1.5;      // legacy flat — no lookahead info
+        var mult = 1.0 + 0.06 * ctx.NextWordLength;  // length-driven component
+        if (!ctx.NextWordIsCommon) mult += 0.3;       // rarity penalty for unfamiliar words
+        return Math.Clamp(mult, 1.0, 3.5);
     }
 
     private static double BiomechanicalMultiplier(char prev, char cur, Layouts.KeyboardLayout? layout)

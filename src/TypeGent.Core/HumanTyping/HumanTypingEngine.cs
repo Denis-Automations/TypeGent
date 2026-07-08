@@ -34,17 +34,35 @@ public sealed class HumanTypingEngine
         var typed = 0;
         var i = 0;
 
-        TypingContext Ctx(char c, char previous, int typedSoFar) => new()
+        // Scan ahead to get the word starting at 'start' (used for pre-word planning pause).
+        static (int Length, bool IsCommon) WordInfo(string t, int start, char previous)
         {
-            CurrentChar = c,
-            PreviousChar = previous,
-            CharsTypedSoFar = typedSoFar,
-            NeedsShift = layout.CanMap(c) && layout.NeedsShift(c),
-            Fatigue = profile.Fatigue,
-            WarmUp = profile.WarmUp,
-            Pace = profile.Pace,
-            Layout = layout,       // v2 Phase 3: biomechanical timing multiplier
-        };
+            if (previous != ' ' && previous != '\0') return (0, false);
+            var j = start;
+            while (j < t.Length && char.IsLetter(t[j])) j++;
+            var len = j - start;
+            if (len == 0) return (0, false);
+            var word = t.Substring(start, len).ToLowerInvariant();
+            return (len, DelayModel.IsCommonWord(word));
+        }
+
+        TypingContext Ctx(char c, char previous, int typedSoFar)
+        {
+            var (wordLen, wordIsCommon) = WordInfo(text, i, previous);
+            return new()
+            {
+                CurrentChar = c,
+                PreviousChar = previous,
+                CharsTypedSoFar = typedSoFar,
+                NeedsShift = layout.CanMap(c) && layout.NeedsShift(c),
+                Fatigue = profile.Fatigue,
+                WarmUp = profile.WarmUp,
+                Pace = profile.Pace,
+                Layout = layout,           // v2 Phase 3: biomechanical timing multiplier
+                NextWordLength = wordLen,  // v2 Phase 4: pre-word planning pause
+                NextWordIsCommon = wordIsCommon,
+            };
+        }
 
         TimedAction Key(char c, double delayMs) =>
             new(TimeSpan.FromMilliseconds(delayMs), layout.ToAction(c));
