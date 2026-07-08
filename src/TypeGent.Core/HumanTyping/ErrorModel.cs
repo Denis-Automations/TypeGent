@@ -34,9 +34,13 @@ public sealed class ErrorModel
 
     public ErrorModel(Random rng) => _rng = rng ?? throw new ArgumentNullException(nameof(rng));
 
-    /// <summary>Roll for a typo at the current character (v2 Phase 5: speed-coupled rate).</summary>
-    public bool ShouldIntroduceTypo(double typoRate, double currentPace = 1.0) 
-        => _rng.NextDouble() < (typoRate / Math.Max(0.1, currentPace));
+    /// <summary>
+    /// Roll for a typo at the current character (v2 Phase 5: speed-coupled rate).
+    /// Faster pace (<paramref name="currentPace"/> &gt; 1) raises the effective probability —
+    /// this models the speed–accuracy tradeoff: typing faster produces more errors.
+    /// </summary>
+    public bool ShouldIntroduceTypo(double typoRate, double currentPace = 1.0)
+        => _rng.NextDouble() < typoRate * Math.Max(0.1, currentPace);
 
     /// <summary>Pick a typo kind, weighted, among those applicable at this position.</summary>
     public TypoKind ChooseKind(bool canTranspose, bool canShiftMistime, bool canMissDouble)
