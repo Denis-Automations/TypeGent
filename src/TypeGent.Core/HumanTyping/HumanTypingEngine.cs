@@ -43,6 +43,7 @@ public sealed class HumanTypingEngine
             Fatigue = profile.Fatigue,
             WarmUp = profile.WarmUp,
             Pace = profile.Pace,
+            Layout = layout,       // v2 Phase 3: biomechanical timing multiplier
         };
 
         TimedAction Key(char c, double delayMs) =>

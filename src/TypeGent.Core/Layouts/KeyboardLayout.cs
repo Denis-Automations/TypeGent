@@ -5,7 +5,12 @@ namespace TypeGent.Core.Layouts;
 /// <summary>
 /// Maps characters to the physical key (plus Shift state) that produces them on a given
 /// keyboard layout. v1 ships only <see cref="UsQwertyLayout"/>; the abstraction stays so
-/// UK QWERTY / AZERTY / Dvorak / Colemak are cheap to add in v2 (see plan.md Phase 8).
+/// UK QWERTY / AZERTY / Dvorak / Colemak are cheap to add in v2 (see planv2.md Phase 13).
+/// <para>
+/// v2 Phase 3 extends the contract with <see cref="TryGetMeta"/> so layouts can supply
+/// per-key biomechanical metadata (hand, finger, row, position) used by
+/// <c>DelayModel</c> to derive realistic timing multipliers.
+/// </para>
 /// </summary>
 public abstract class KeyboardLayout
 {
@@ -23,6 +28,18 @@ public abstract class KeyboardLayout
 
     /// <summary>Every character this layout can express via the VK-chord path.</summary>
     public abstract IEnumerable<char> SupportedChars { get; }
+
+    /// <summary>
+    /// Try to retrieve physical metadata for the key that produces <paramref name="c"/> (case-
+    /// insensitive for letters — the physical key is the same regardless of Shift). Returns
+    /// <see langword="false"/> for characters without metadata (symbols, digits, out-of-layout
+    /// chars) so callers can skip biomechanical scoring gracefully.
+    /// </summary>
+    public virtual bool TryGetMeta(char c, out KeyMeta meta)
+    {
+        meta = default;
+        return false;
+    }
 
     /// <summary>
     /// Translate a character into the <see cref="KeyAction"/> that produces it:

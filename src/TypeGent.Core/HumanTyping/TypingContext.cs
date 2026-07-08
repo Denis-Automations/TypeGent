@@ -1,3 +1,5 @@
+using TypeGent.Core.Layouts;
+
 namespace TypeGent.Core.HumanTyping;
 
 /// <summary>
@@ -33,4 +35,11 @@ public sealed class TypingContext
     /// Defaults to <c>false</c> so a default-constructed context stays neutral for timing tests.
     /// </summary>
     public bool Pace { get; init; }
+
+    /// <summary>
+    /// The active keyboard layout, used by <see cref="DelayModel"/> in v2 Phase 3 to look up
+    /// per-key biomechanical metadata for the relationship multiplier. When <see langword="null"/>
+    /// the biomechanical modifier is skipped, so tests that don't set it stay neutral.
+    /// </summary>
+    public KeyboardLayout? Layout { get; init; }
 }

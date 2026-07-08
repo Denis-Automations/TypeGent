@@ -16,6 +16,49 @@ public sealed class UsQwertyLayout : KeyboardLayout
 {
     private static readonly IReadOnlyDictionary<char, (VirtualKey Vk, bool Shift)> Map = Build();
 
+    // Biomechanical metadata for the 26 letter keys (v2 Phase 3, §2.4).
+    // Coordinates in key-width units; rows: top=1 (QWERTY row), home=0 (ASDF row),
+    // bottom=−1 (ZXCV row). X is measured from the left edge of the keyboard.
+    // Standard QWERTY stagger: home row offset +0.25, bottom row offset +0.5 relative to top.
+    //   Top row X origin = 0       (Q at x=0)
+    //   Home row X origin = 0.25   (A at x=0.25, staggered right by 0.25 from Q)
+    //   Bottom row X origin = 0.5  (Z at x=0.5, staggered right by 0.5 from Q)
+    private static readonly IReadOnlyDictionary<char, KeyMeta> Metadata =
+        new Dictionary<char, KeyMeta>
+        {
+            // Top row (row 1, Y=1): Q W E R T   Y U I O P
+            ['q'] = new(Hand.Left,  Finger.Pinky,  1, 0.0, 1),
+            ['w'] = new(Hand.Left,  Finger.Ring,   1, 1.0, 1),
+            ['e'] = new(Hand.Left,  Finger.Middle, 1, 2.0, 1),
+            ['r'] = new(Hand.Left,  Finger.Index,  1, 3.0, 1),
+            ['t'] = new(Hand.Left,  Finger.Index,  1, 4.0, 1),
+            ['y'] = new(Hand.Right, Finger.Index,  1, 5.0, 1),
+            ['u'] = new(Hand.Right, Finger.Index,  1, 6.0, 1),
+            ['i'] = new(Hand.Right, Finger.Middle, 1, 7.0, 1),
+            ['o'] = new(Hand.Right, Finger.Ring,   1, 8.0, 1),
+            ['p'] = new(Hand.Right, Finger.Pinky,  1, 9.0, 1),
+
+            // Home row (row 0, Y=0): A S D F G   H J K L
+            ['a'] = new(Hand.Left,  Finger.Pinky,  0, 0.25, 0),
+            ['s'] = new(Hand.Left,  Finger.Ring,   0, 1.25, 0),
+            ['d'] = new(Hand.Left,  Finger.Middle, 0, 2.25, 0),
+            ['f'] = new(Hand.Left,  Finger.Index,  0, 3.25, 0),
+            ['g'] = new(Hand.Left,  Finger.Index,  0, 4.25, 0),
+            ['h'] = new(Hand.Right, Finger.Index,  0, 5.25, 0),
+            ['j'] = new(Hand.Right, Finger.Index,  0, 6.25, 0),
+            ['k'] = new(Hand.Right, Finger.Middle, 0, 7.25, 0),
+            ['l'] = new(Hand.Right, Finger.Ring,   0, 8.25, 0),
+
+            // Bottom row (row −1, Y=−1): Z X C V B   N M
+            ['z'] = new(Hand.Left,  Finger.Pinky,  -1, 0.5,  -1),
+            ['x'] = new(Hand.Left,  Finger.Ring,   -1, 1.5,  -1),
+            ['c'] = new(Hand.Left,  Finger.Middle, -1, 2.5,  -1),
+            ['v'] = new(Hand.Left,  Finger.Index,  -1, 3.5,  -1),
+            ['b'] = new(Hand.Left,  Finger.Index,  -1, 4.5,  -1),
+            ['n'] = new(Hand.Right, Finger.Index,  -1, 5.5,  -1),
+            ['m'] = new(Hand.Right, Finger.Index,  -1, 6.5,  -1),
+        };
+
     public override string Name => "US QWERTY";
 
     public override bool CanMap(char c) => Map.ContainsKey(c);
@@ -29,6 +72,16 @@ public sealed class UsQwertyLayout : KeyboardLayout
     public override bool NeedsShift(char c) => Map.TryGetValue(c, out var entry) && entry.Shift;
 
     public override IEnumerable<char> SupportedChars => Map.Keys;
+
+    /// <summary>
+    /// Returns physical metadata for letter keys (case-insensitive). Returns false for digits,
+    /// punctuation, and space, which have no biomechanical timing data in this version.
+    /// </summary>
+    public override bool TryGetMeta(char c, out KeyMeta meta)
+    {
+        var key = char.ToLowerInvariant(c);
+        return Metadata.TryGetValue(key, out meta);
+    }
 
     private static Dictionary<char, (VirtualKey, bool)> Build()
     {

@@ -78,6 +78,7 @@ public sealed class DelayModel
         delay *= BigramMultiplier(ctx.PreviousChar, ctx.CurrentChar);             // familiarity (§1.1)
         if (ctx.Fatigue) delay *= 1.0 + 0.0005 * ctx.CharsTypedSoFar;             // fatigue
         if (ctx.WarmUp) delay *= 1.0 + 0.20 * Math.Exp(-ctx.CharsTypedSoFar / 40.0); // warm-up ramp (§1.3)
+        delay *= BiomechanicalMultiplier(ctx.PreviousChar, ctx.CurrentChar, ctx.Layout); // hand/finger/distance (§2.4)
 
         // AR(1) autocorrelated pace (§2.1): pace drifts in slow runs so IKIs are positively
         // autocorrelated instead of i.i.d. Stateful — _pace carries across calls within a plan.
@@ -105,6 +106,39 @@ public sealed class DelayModel
         if (prev == '.' || prev == '!' || prev == '?') return 3.0;    // sentence boundary
         if (prev == '\n' || prev == '\r') return 5.0;                 // paragraph / line break
         return 1.0;
+    }
+
+    private static double BiomechanicalMultiplier(char prev, char cur, Layouts.KeyboardLayout? layout)
+    {
+        // No layout or no metadata for either key → skip (preserves draw order — no RNG draw).
+        if (layout is null) return 1.0;
+        if (prev == '\0') return 1.0;
+        if (!layout.TryGetMeta(prev, out var pm)) return 1.0;
+        if (!layout.TryGetMeta(cur,  out var cm)) return 1.0;
+
+        // Double-letter: same physical key struck twice.
+        if (char.ToLowerInvariant(prev) == char.ToLowerInvariant(cur)) return 1.38;
+
+        // Relationship multiplier (hand/finger). Measured means from §2.4:
+        //   Alternating hand  ≈ 114 ms → ×1.00 (baseline)
+        //   Same hand, diff finger ≈ 131 ms → ×1.15
+        //   Same finger       ≈ 157 ms → ×1.38
+        double mult;
+        if (pm.Hand != cm.Hand)
+            mult = 1.00;                             // hand alternation — fastest
+        else if (pm.Finger != cm.Finger)
+            mult = 1.15;                             // same hand, different finger
+        else
+            mult = 1.38;                             // same finger — slowest
+
+        // Distance term: up to +8% for keys far apart (row jumps, long reaches).
+        // Euclidean distance in key-width units; reference distance = 1 key width.
+        var dx = pm.X - cm.X;
+        var dy = pm.Y - cm.Y;
+        var dist = Math.Sqrt(dx * dx + dy * dy);
+        mult += 0.04 * Math.Min(dist, 2.0);         // caps at 2 key-widths to avoid outliers
+
+        return mult;
     }
 
     private static double BigramMultiplier(char prev, char cur)
