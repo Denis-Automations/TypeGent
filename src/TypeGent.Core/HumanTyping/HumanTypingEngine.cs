@@ -81,7 +81,12 @@ public sealed class HumanTypingEngine
             }
             for (var k = 0; k < backspaceCount; k++)
             {
-                var bsDelay = k == 0 ? errors.ReactionDelayMs() : delays.SampleDelayMs(baseDelay, errCtx) * 0.4;
+                // First BS: human reaction pause (150–450 ms).
+                // Subsequent BSes: fast burst rhythm, but never below 60 ms so the OS/app
+                // event queue doesn't drop events (at 110 WPM the raw ×0.4 can reach ~19 ms).
+                var bsDelay = k == 0
+                    ? errors.ReactionDelayMs()
+                    : Math.Max(60.0, delays.SampleDelayMs(baseDelay, errCtx) * 0.4);
                 yield return Back(bsDelay);
             }
         }

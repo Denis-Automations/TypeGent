@@ -38,9 +38,11 @@ public sealed class ErrorModel
     /// Roll for a typo at the current character (v2 Phase 5: speed-coupled rate).
     /// Faster pace (<paramref name="currentPace"/> &gt; 1) raises the effective probability —
     /// this models the speed–accuracy tradeoff: typing faster produces more errors.
+    /// The effective rate is capped at 0.45 so pace spikes can't produce pathologically
+    /// frequent typos that overwhelm the correction machinery.
     /// </summary>
     public bool ShouldIntroduceTypo(double typoRate, double currentPace = 1.0)
-        => _rng.NextDouble() < typoRate * Math.Max(0.1, currentPace);
+        => _rng.NextDouble() < Math.Min(0.45, typoRate * Math.Max(0.1, currentPace));
 
     /// <summary>Pick a typo kind, weighted, among those applicable at this position.</summary>
     public TypoKind ChooseKind(bool canTranspose, bool canShiftMistime, bool canMissDouble)
