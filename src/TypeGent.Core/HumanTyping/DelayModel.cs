@@ -12,6 +12,11 @@ namespace TypeGent.Core.HumanTyping;
 /// of <see cref="SampleDelayMs"/> and is skipped entirely when the rate is 0, so existing seeded
 /// plans keep their draw order (see <c>docs/v2-invariants.md</c> §1).
 /// </para>
+/// <para>
+/// Bigram timing is driven by the corpus-derived <see cref="BigramTable"/> (v2 Phase 8), which
+/// supersedes the hand-coded fast/slow hash-sets from Phase 1. The lookup is deterministic
+/// (no RNG draw) so seeded reproducibility is unaffected.
+/// </para>
 /// </summary>
 public sealed class DelayModel
 {
@@ -19,23 +24,6 @@ public sealed class DelayModel
     public const double FloorMs = 45.0;
 
     public const double MaxDelayMs = 2000.0;
-
-    // Top ~50 English bigrams type faster than average (×0.7). Grown from v1's 14 (v2 Phase 1, §1.1).
-    private static readonly HashSet<string> FastBigrams = new(StringComparer.Ordinal)
-    {
-        "th", "he", "in", "er", "an", "re", "on", "at", "en", "nd",
-        "ti", "es", "or", "te", "of", "ed", "is", "it", "al", "ar",
-        "st", "to", "nt", "ng", "se", "ha", "as", "ou", "io", "le",
-        "ve", "co", "me", "de", "hi", "ri", "ea", "ra", "ce", "li",
-        "ch", "ll", "be", "ma", "el", "ta", "la", "na", "ot", "so",
-    };
-
-    // Rare / awkward bigrams type slower than average (×1.15). v2 Phase 1 slow set (§1.1).
-    private static readonly HashSet<string> SlowBigrams = new(StringComparer.Ordinal)
-    {
-        "qz", "zq", "jq", "qj", "zx", "xz", "qx", "xq", "jx", "xj",
-        "vq", "qv", "bv", "vb", "pq", "qp", "gq", "qg", "mx", "xm",
-    };
 
     // High-frequency English words that need less pre-word planning time (v2 Phase 4, §2.3).
     // Covers ~65 % of tokens in typical running text. Case-insensitive comparison.
@@ -218,13 +206,8 @@ public sealed class DelayModel
     }
 
     private static double BigramMultiplier(char prev, char cur)
-    {
-        if (prev == '\0') return 1.0;
-        var pair = new string(new[] { char.ToLowerInvariant(prev), char.ToLowerInvariant(cur) });
-        if (FastBigrams.Contains(pair)) return 0.7;
-        if (SlowBigrams.Contains(pair)) return 1.15;
-        return 1.0;
-    }
+        // v2 Phase 8: delegate to the corpus-derived table (supersedes Phase 1 hard-coded sets).
+        => BigramTable.GetMultiplier(prev, cur);
 
     // Standard normal via Box–Muller (draws two uniforms per call; no cached spare so the
     // RNG-consumption order stays trivially deterministic).

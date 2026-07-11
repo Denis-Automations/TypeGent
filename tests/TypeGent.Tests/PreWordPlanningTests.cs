@@ -109,8 +109,11 @@ public class PreWordPlanningTests
     {
         // When NextWordLength == 0 (no lookahead), the space multiplier must remain ×1.5
         // so every prior test and user that doesn't set word-context stays unaffected.
+        // Use prev='\0' as neutral so BigramTable returns exactly 1.0 (v2 Phase 8: the corpus
+        // table gives non-1.0 multipliers to letter pairs like "ax"). The space case uses a
+        // non-letter prev (' ') so its bigram mult is also 1.0, keeping the ratio exactly ×1.5.
         var neutral  = new DelayModel(new Random(7), jitter: 0.05).SampleDelayMs(200,
-            new TypingContext { PreviousChar = 'a', CurrentChar = 'x', Fatigue = false });
+            new TypingContext { PreviousChar = '\0', CurrentChar = 'x', Fatigue = false });
         var noLook   = new DelayModel(new Random(7), jitter: 0.05).SampleDelayMs(200,
             new TypingContext { PreviousChar = ' ', CurrentChar = 'x', Fatigue = false,
                                 NextWordLength = 0 });

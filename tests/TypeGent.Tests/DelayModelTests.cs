@@ -28,15 +28,14 @@ public class DelayModelTests
     }
 
     [Theory]
-    [InlineData(false, ' ', '\0', 'x', 1.0)]     // neutral
-    [InlineData(true, '\0', '\0', 'x', 1.15)]    // needs shift
-    [InlineData(false, ' ', ' ', 'x', 1.5)]      // follows a space
-    [InlineData(false, '\0', 't', 'h', 0.7)]     // common bigram "th"
+    [InlineData(false, '\0', 'x', 1.0)]     // neutral
+    [InlineData(true,  '\0', 'x', 1.15)]    // needs shift
+    [InlineData(false, ' ',  'x', 1.5)]     // follows a space (legacy flat ×1.5 when NextWordLength==0)
     public void Modifiers_ScaleTheSampleDeterministically(
-        bool needsShift, char ignored, char prev, char cur, double expectedFactor)
+        bool needsShift, char prev, char cur, double expectedFactor)
     {
-        _ = ignored;
         // Same seed -> same underlying Gaussian draw, so the only difference is the modifier.
+        // Uses prev='\0' for neutral so BigramTable returns 1.0 (no letter context).
         var neutral = new DelayModel(new Random(7)).SampleDelayMs(100, new TypingContext());
         var modified = new DelayModel(new Random(7)).SampleDelayMs(100, new TypingContext
         {
@@ -47,6 +46,24 @@ public class DelayModelTests
         });
 
         modified.Should().BeApproximately(neutral * expectedFactor, 1e-6);
+    }
+
+    [Fact]
+    public void Modifiers_CommonBigram_Th_IsCorpusDerivedMultiplier()
+    {
+        // v2 Phase 8: 'th' multiplier now comes from the corpus-derived BigramTable, not the
+        // hard-coded Phase 1 ×0.70 bucket. The value (~0.641) is automatically correct.
+        var neutral = new DelayModel(new Random(7)).SampleDelayMs(100, new TypingContext());
+        var thDelay = new DelayModel(new Random(7)).SampleDelayMs(100, new TypingContext
+        {
+            PreviousChar = 't', CurrentChar = 'h', Fatigue = false,
+        });
+
+        var expected = neutral * BigramTable.GetMultiplier('t', 'h');
+        thDelay.Should().BeApproximately(expected, 1e-6,
+            "'th' delay should equal neutral × corpus-derived bigram multiplier");
+        BigramTable.GetMultiplier('t', 'h').Should().BeLessThan(0.75,
+            "'th' is one of the most common English bigrams — its multiplier should be well below 0.75");
     }
 
     [Fact]
@@ -87,9 +104,11 @@ public class DelayModelTests
     [InlineData('\n', 5.0)]
     public void BoundaryMultiplier_LengthensDelayAfterBoundary(char prev, double factor)
     {
-        // "az" is in neither the fast nor the slow set, so it is a clean neutral reference.
+        // Use prev='\0' as neutral: BigramTable returns 1.0 for '\0' (no previous char), and
+        // the boundary chars (space, comma, etc.) are non-letters so their bigram mult is also 1.0.
+        // This isolates the boundary multiplier from any corpus bigram offset (v2 Phase 8).
         var neutral = new DelayModel(new Random(7)).SampleDelayMs(100,
-            new TypingContext { PreviousChar = 'a', CurrentChar = 'z' });
+            new TypingContext { PreviousChar = '\0', CurrentChar = 'z' });
         var afterBoundary = new DelayModel(new Random(7)).SampleDelayMs(100,
             new TypingContext { PreviousChar = prev, CurrentChar = 'z' });
 
@@ -97,20 +116,38 @@ public class DelayModelTests
     }
 
     [Theory]
-    [InlineData("th", 0.7)]
-    [InlineData("he", 0.7)]
-    [InlineData("in", 0.7)]
-    [InlineData("st", 0.7)]
-    [InlineData("of", 0.7)]
-    [InlineData("qx", 1.15)]
-    public void BigramTable_FastAndSlowSetsApply(string pair, double factor)
+    [InlineData("th")]
+    [InlineData("he")]
+    [InlineData("in")]
+    [InlineData("st")]
+    [InlineData("of")]
+    public void BigramTable_CommonPairs_ProduceFasterDelaysThanNeutral(string pair)
     {
+        // v2 Phase 8: corpus-derived table. Common bigrams get a multiplier < 1.0 so the
+        // delay after the pair is shorter than a neutral (unmapped) pair like "az".
         var neutral = new DelayModel(new Random(7)).SampleDelayMs(100,
             new TypingContext { PreviousChar = 'a', CurrentChar = 'z' });
         var bigram = new DelayModel(new Random(7)).SampleDelayMs(100,
             new TypingContext { PreviousChar = pair[0], CurrentChar = pair[1] });
 
-        bigram.Should().BeApproximately(neutral * factor, 1e-6);
+        bigram.Should().BeLessThan(neutral,
+            $"common bigram '{pair}' should be faster than a neutral pair (corpus-derived table)");
+    }
+
+    [Theory]
+    [InlineData("qx")]
+    [InlineData("jq")]
+    [InlineData("zx")]
+    public void BigramTable_RarePairs_ProduceSlowerDelaysThanNeutral(string pair)
+    {
+        // v2 Phase 8: rare bigrams get a multiplier > 1.0 so the delay is longer than neutral.
+        var neutral = new DelayModel(new Random(7)).SampleDelayMs(100,
+            new TypingContext { PreviousChar = 'a', CurrentChar = 'z' });
+        var bigram = new DelayModel(new Random(7)).SampleDelayMs(100,
+            new TypingContext { PreviousChar = pair[0], CurrentChar = pair[1] });
+
+        bigram.Should().BeGreaterThan(neutral,
+            $"rare bigram '{pair}' should be slower than a neutral pair (corpus-derived table)");
     }
 
     [Fact]

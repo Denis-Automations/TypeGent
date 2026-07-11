@@ -106,23 +106,27 @@ public class BiomechanicalTimingTests
     [Fact]
     public void BiomechanicalMultiplier_SameHandDifferentFinger_FasterThanSameFinger()
     {
-        // d→f : left-middle → left-index (same hand, different finger)
+        // d→f : left-middle → left-index (same hand, different finger) — bio ×1.15
+        // d→d : double letter (left-middle → left-middle, same finger) — bio ×1.38
+        // Both bigrams are infrequent in English (corpus mult ~0.95–0.98), so the
+        // biomechanical ordering (1.15 < 1.38) dominates the corpus-driven offset (v2 Phase 8).
         var sameHandDiffFinger = MedianDelayForDigraph('d', 'f');
-        // e→e : left-middle → left-middle, same key (same finger / double letter — same-finger penalty applies)
-        // Use r→t as a cleaner same-finger case: both are Left-Index on top row
-        var sameFinger = MedianDelayForDigraph('r', 't');
+        var sameFinger         = MedianDelayForDigraph('d', 'd');
 
         sameHandDiffFinger.Should().BeLessThan(sameFinger,
-            "same-hand-different-finger digraphs should be faster than same-finger digraphs");
+            "same-hand-different-finger digraphs should be faster than same-finger (double-letter) digraphs");
     }
 
     [Fact]
     public void BiomechanicalMultiplier_SameFinger_SlowerThanAlternatingHand()
     {
-        // e→j : alternating hand (left-middle → right-index)
-        var altHand = MedianDelayForDigraph('e', 'j');
-        // r→t : same finger (left-index top → left-index top)
-        var sameFinger = MedianDelayForDigraph('r', 't');
+        // e→n : left-middle → right-index (alternating hand, bio ×1.00).
+        //       'en' is a very common English bigram (freq ~3.44) → corpus mult ~0.655 → total ~0.655.
+        // d→d : double letter (left-middle → left-middle, same finger, bio ×1.38).
+        //       'dd' is a rare bigram (freq ~0.15) → corpus mult ~0.949 → total ~1.309.
+        // 0.655 ≪ 1.309: the alternating-hand pair is clearly faster despite any corpus offset (v2 Phase 8).
+        var altHand   = MedianDelayForDigraph('e', 'n');
+        var sameFinger = MedianDelayForDigraph('d', 'd');
 
         altHand.Should().BeLessThan(sameFinger,
             "alternating-hand digraphs should be measurably faster than same-finger digraphs");

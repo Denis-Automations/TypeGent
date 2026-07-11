@@ -291,8 +291,8 @@ asset (no runtime corpus dependency).
 
 **Success criteria (all must pass):**
 
-- [ ] Bigram timing comes from a corpus-derived table shipped as a static asset.
-- [ ] Determinism and net-text invariants intact; all prior tests green.
+- [x] Bigram timing comes from a corpus-derived table shipped as a static asset.
+- [x] Determinism and net-text invariants intact; all prior tests green.
 
 **Definition of done:** Data-driven bigram (Markov) timing supersedes the hand-coded list.
 
