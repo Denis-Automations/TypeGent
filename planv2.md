@@ -40,8 +40,8 @@ Everything below must hold the contracts v1 established, or it isn't shippable.
 
 **Success criteria (all must pass):**
 
-- [ ] A `docs/v2-invariants.md` (or a section in the README) records the four contracts above.
-- [ ] The existing 34 v1 tests stay green at the end of every phase (no regression gate).
+- [x] A `docs/v2-invariants.md` (or a section in the README) records the four contracts above.
+- [x] The existing 34 v1 tests stay green at the end of every phase (no regression gate).
 
 ---
 
@@ -79,11 +79,11 @@ from the RNG. (§1.5)
 
 **Success criteria (all must pass):**
 
-- [ ] Bigram table has ~50 fast entries (+ optional slow set); a comma/period/newline each lengthen
+- [x] Bigram table has ~50 fast entries (+ optional slow set); a comma/period/newline each lengthen
       the following delay; warm-up shortens delays over the first ~40 chars; a shifted log-normal
       replaces the 20 ms clamp with a ~45 ms floor; lapses fire at the configured rate.
-- [ ] `DelayModel` median-tracks-base test still passes; seeded reproducibility test still passes.
-- [ ] All v1 tests green.
+- [x] `DelayModel` median-tracks-base test still passes; seeded reproducibility test still passes.
+- [x] All v1 tests green.
 
 **Definition of done:** Tier-1 timing refinements merged; timing looks visibly more natural on a
 200-char paragraph; determinism and median invariants intact.
@@ -111,10 +111,10 @@ future preview/telemetry view.
 
 **Success criteria (all must pass):**
 
-- [ ] Measured lag-1 autocorrelation of inter-key delays is significantly > 0 with pace enabled,
+- [x] Measured lag-1 autocorrelation of inter-key delays is significantly > 0 with pace enabled,
       ≈ 0 with it disabled.
-- [ ] Same seed → identical plan (draw-order stability preserved).
-- [ ] All prior tests green.
+- [x] Same seed → identical plan (draw-order stability preserved).
+- [x] All prior tests green.
 
 **Definition of done:** Pace is autocorrelated and tunable; the "randomly rerolled every key" signature
 is gone; determinism preserved.
@@ -142,10 +142,10 @@ same-hand-different-finger ≈ 1.15×, same-finger ≈ 1.35×, double-letter ≈
 
 **Success criteria (all must pass):**
 
-- [ ] Layout exposes per-key hand/finger/row/position metadata for US QWERTY.
-- [ ] Same-finger and same-hand bigrams are measurably slower than alternating-hand bigrams; distance
+- [x] Layout exposes per-key hand/finger/row/position metadata for US QWERTY.
+- [x] Same-finger and same-hand bigrams are measurably slower than alternating-hand bigrams; distance
       adds latency for row jumps.
-- [ ] All prior tests green.
+- [x] All prior tests green.
 
 **Definition of done:** Per-bigram timing is driven by real biomechanics via layout metadata, not guesswork.
 
@@ -170,8 +170,8 @@ get a smaller one.
 
 **Success criteria (all must pass):**
 
-- [ ] Post-space delay scales with next-word length (and rarity if the list ships).
-- [ ] Determinism preserved; all prior tests green.
+- [x] Post-space delay scales with next-word length (and rarity if the list ships).
+- [x] Determinism preserved; all prior tests green.
 
 **Definition of done:** Word-boundary pauses reflect planning load, not a constant multiplier.
 
@@ -201,10 +201,10 @@ replacing v1's uniform pick. *(plan.md Phase 8 item.)*
 
 **Success criteria (all must pass):**
 
-- [ ] Error-kind distribution matches the target mix within tolerance over N seeds.
-- [ ] Higher pace yields a higher measured typo count.
-- [ ] Adjacent-key substitution is distance-weighted.
-- [ ] Net typed text still == input; all prior tests green.
+- [x] Error-kind distribution matches the target mix within tolerance over N seeds.
+- [x] Higher pace yields a higher measured typo count.
+- [x] Adjacent-key substitution is distance-weighted.
+- [x] Net typed text still == input; all prior tests green.
 
 **Definition of done:** Error frequency, kind, and target-key selection are data-driven and speed-coupled.
 
@@ -234,10 +234,10 @@ each corrected on later detection.
 
 **Success criteria (all must pass):**
 
-- [ ] Net-text-equals-input reconstruction test **generalized** to tolerate delayed corrections and green.
-- [ ] Omission and missing-double kinds emit and self-correct.
-- [ ] Backspace bursts type at a realistic (fast, repeated-key) rhythm.
-- [ ] All prior tests green.
+- [x] Net-text-equals-input reconstruction test **generalized** to tolerate delayed corrections and green.
+- [x] Omission and missing-double kinds emit and self-correct.
+- [x] Backspace bursts type at a realistic (fast, repeated-key) rhythm.
+- [x] All prior tests green.
 
 **Definition of done:** Corrections can be immediate or delayed; omission/double typos ship; the
 net-text invariant holds under displaced corrections.
@@ -263,9 +263,9 @@ a bulk replace of the word).
 
 **Success criteria (all must pass):**
 
-- [ ] Misspelling dictionary drives occasional cognitive errors, all net-corrected.
-- [ ] Autocorrect simulation (if shipped) is toggleable and distinct from manual correction.
-- [ ] All prior tests green.
+- [x] Misspelling dictionary drives occasional cognitive errors, all net-corrected.
+- [x] Autocorrect simulation (if shipped) is toggleable and distinct from manual correction.
+- [x] All prior tests green.
 
 **Definition of done:** Cognitive misspellings (and optional autocorrect) join the mechanical typos, all
 respecting net-text == input.

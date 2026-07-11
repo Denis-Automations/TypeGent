@@ -5,7 +5,7 @@ namespace TypeGent.Core.HumanTyping;
 
 /// <summary>
 /// Plans a human-looking keystroke sequence for a piece of text: realistic per-key timing plus
-/// occasional mechanical typos that are <em>always corrected immediately</em>, so the net typed
+/// occasional mechanical typos and cognitive misspellings, all net-corrected so the net typed
 /// text always equals the input. The single injected <see cref="Random"/> is threaded into both
 /// the <see cref="DelayModel"/> and <see cref="ErrorModel"/>, so one seed reproduces an entire plan.
 /// </summary>
@@ -91,10 +91,128 @@ public sealed class HumanTypingEngine
             }
         }
 
+        // ── v2 Phase 7: cognitive misspelling ────────────────────────────────────────
+        // Yields a complete misspelling-then-correction sequence for the word at text[i..i+wordLen).
+        // Two correction modes:
+        //   AutocorrectEnabled=true  → a fast autocorrect bulk-replace (KeyAction.Text) replaces
+        //                              the mistyped word. Distinct from human backspacing.
+        //   AutocorrectEnabled=false → human backspace burst erases the misspelled word; the
+        //                              correct word is then retyped via the existing key path.
+        // In both cases net typed text == input when the caller advances i by wordLen.
+        IEnumerable<TimedAction> CognitiveMisspellingSequence(
+            string misspelling, string correctWord, TypingContext firstCtx)
+        {
+            // 1. Type the misspelled form character by character.
+            for (var m = 0; m < misspelling.Length; m++)
+            {
+                var mc = misspelling[m];
+                var mCtx = m == 0
+                    ? firstCtx
+                    : new TypingContext
+                    {
+                        CurrentChar    = mc,
+                        PreviousChar   = misspelling[m - 1],
+                        CharsTypedSoFar = i + m,
+                        NeedsShift     = layout.CanMap(mc) && layout.NeedsShift(mc),
+                        Fatigue        = profile.Fatigue,
+                        WarmUp         = profile.WarmUp,
+                        Pace           = profile.Pace,
+                        Layout         = layout,
+                    };
+                if (layout.CanMap(mc))
+                    yield return Key(mc, delays.SampleDelayMs(baseDelay, mCtx));
+                else
+                    yield return new TimedAction(
+                        TimeSpan.FromMilliseconds(delays.SampleDelayMs(baseDelay, mCtx)),
+                        new KeyAction.Text(mc.ToString()));
+            }
+
+            // 2. Correction: autocorrect or human backspacing.
+            if (profile.AutocorrectEnabled)
+            {
+                // Autocorrect: short pause then the system bulk-replaces the misspelled word.
+                // We model this as fast backspaces × misspelling.Length followed by a single
+                // Text action with the correct word — visually distinct from human backspacing.
+                var acDelay = errors.AutocorrectDelayMs();
+                for (var k = 0; k < misspelling.Length; k++)
+                    yield return Back(k == 0 ? acDelay : Math.Max(30.0, acDelay / misspelling.Length));
+                // Insert the correct word in one shot (simulates IME/autocorrect text injection).
+                yield return new TimedAction(
+                    TimeSpan.FromMilliseconds(Math.Max(30.0, acDelay / 2.0)),
+                    new KeyAction.Text(correctWord));
+            }
+            else
+            {
+                // Human correction: reaction pause → backspace burst → retype correct word.
+                for (var k = 0; k < misspelling.Length; k++)
+                {
+                    var bsDelay = k == 0
+                        ? errors.ReactionDelayMs()
+                        : Math.Max(60.0, delays.SampleDelayMs(baseDelay, firstCtx) * 0.4);
+                    yield return Back(bsDelay);
+                }
+                // Retype the correct word character by character.
+                for (var r = 0; r < correctWord.Length; r++)
+                {
+                    var rc = correctWord[r];
+                    var rCtx = new TypingContext
+                    {
+                        CurrentChar    = rc,
+                        PreviousChar   = r == 0 ? prev : correctWord[r - 1],
+                        CharsTypedSoFar = i + r,
+                        NeedsShift     = layout.CanMap(rc) && layout.NeedsShift(rc),
+                        Fatigue        = profile.Fatigue,
+                        WarmUp         = profile.WarmUp,
+                        Pace           = profile.Pace,
+                        Layout         = layout,
+                    };
+                    if (layout.CanMap(rc))
+                        yield return Key(rc, delays.SampleDelayMs(baseDelay, rCtx));
+                    else
+                        yield return new TimedAction(
+                            TimeSpan.FromMilliseconds(delays.SampleDelayMs(baseDelay, rCtx)),
+                            new KeyAction.Text(rc.ToString()));
+                }
+            }
+        }
+
         while (i < text.Length)
         {
             var c = text[i];
             var ctx = Ctx(c, prev, i);
+
+            // ── v2 Phase 7: cognitive misspelling check (word-boundary, before per-char typos) ──
+            // Fire once per word start when the whole word is in the misspelling dictionary and we
+            // haven't already handled it (retypingUntil guard). The check consumes one RNG draw;
+            // when MisspellingRate==0 no draw is made so existing seeded plans are unaffected.
+            var atWordStart = (prev == ' ' || prev == '\0') && char.IsLetter(c);
+            if (atWordStart && i >= retypingUntil && profile.MisspellingRate > 0)
+            {
+                // Extract the full word at the current position.
+                var wordEnd = i;
+                while (wordEnd < text.Length && char.IsLetter(text[wordEnd])) wordEnd++;
+                var wordLen = wordEnd - i;
+                var wordText = text.Substring(i, wordLen);
+
+                if (MisspellingDictionary.TryGet(wordText, out var misspelling)
+                    && errors.ShouldApplyMisspelling(profile.MisspellingRate))
+                {
+                    // Preserve the original case pattern: if the first char is uppercase, match it.
+                    var correctedMisspelling = char.IsUpper(c)
+                        ? char.ToUpperInvariant(misspelling[0]) + misspelling.Substring(1)
+                        : misspelling;
+
+                    foreach (var a in CognitiveMisspellingSequence(correctedMisspelling, wordText, ctx))
+                        yield return a;
+
+                    // Advance past the entire word — the correct form has been output.
+                    prev = wordText[wordLen - 1];
+                    i += wordLen;
+                    retypingUntil = i; // no further typo injection until here
+                    continue;
+                }
+            }
+
             var eligible = i >= retypingUntil && char.IsLetter(c) && layout.CanMap(c);
 
             if (eligible && errors.ShouldIntroduceTypo(profile.TypoRate, delays.CurrentPace))

@@ -47,6 +47,22 @@ public sealed class TypingProfile
     public double LapseMaxMs { get; init; } = 4000;
 
     /// <summary>
+    /// Per-word probability of attempting a cognitive misspelling from the
+    /// <see cref="MisspellingDictionary"/> (v2 Phase 7). The misspelling is always
+    /// corrected (immediate or delayed per Phase 6). Defaults to 0 so existing seeded
+    /// plans keep their RNG draw order — the app enables it.
+    /// </summary>
+    public double MisspellingRate { get; init; } = 0.0;
+
+    /// <summary>
+    /// Whether to simulate an autocorrect pass that bulk-replaces the mistyped word a beat
+    /// after the final character is typed — distinct from manual backspacing (v2 Phase 7).
+    /// When <see langword="false"/> (default) the engine uses human backspacing for all
+    /// corrections; when <see langword="true"/> a fast autocorrect action replaces the word.
+    /// </summary>
+    public bool AutocorrectEnabled { get; init; } = false;
+
+    /// <summary>
     /// The median inter-key interval implied by <see cref="Wpm"/>: 60000 / (Wpm * 5).
     /// At 60 WPM this is 200 ms.
     /// </summary>

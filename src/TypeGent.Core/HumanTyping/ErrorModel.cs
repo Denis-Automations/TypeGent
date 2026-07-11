@@ -20,13 +20,20 @@ public enum TypoKind
 
     /// <summary>Type a double-letter pair only once (e.g. 'commitee' instead of 'committee') (v2 Phase 6).</summary>
     MissingDouble,
+
+    /// <summary>
+    /// Type a learned cognitive misspelling of an entire word, then correct it
+    /// (immediate or delayed). The misspelling comes from <see cref="MisspellingDictionary"/>
+    /// rather than a physical adjacency table (v2 Phase 7).
+    /// </summary>
+    CognitiveMisspelling,
 }
 
 /// <summary>
 /// Decides whether and how to introduce a mechanical typo, using the same injected RNG as the
-/// <see cref="DelayModel"/> (so one seed reproduces an entire plan). Cognitive/spelling errors
-/// and delayed-detection errors (omission, missing double letters) are deferred to v2 — see
-/// plan.md Phase 8.
+/// <see cref="DelayModel"/> (so one seed reproduces an entire plan). Mechanical typos (Phases
+/// 5–6) and cognitive misspellings (Phase 7) share this model; all are net-corrected so the
+/// invariant <c>net typed text == input</c> always holds.
 /// </summary>
 public sealed class ErrorModel
 {
@@ -130,6 +137,21 @@ public sealed class ErrorModel
 
     /// <summary>How many extra times a repeated key fires (mostly 1, sometimes 2).</summary>
     public int ExtraRepeats() => _rng.NextDouble() < 0.8 ? 1 : 2;
+
+    /// <summary>
+    /// Roll for a cognitive misspelling at the start of a word (v2 Phase 7).
+    /// The misspelling rate is independent of — and additive with — the mechanical typo rate,
+    /// but shares the same RNG so the draw order is stable.
+    /// </summary>
+    public bool ShouldApplyMisspelling(double misspellingRate)
+        => misspellingRate > 0 && _rng.NextDouble() < misspellingRate;
+
+    /// <summary>
+    /// The delay (ms) between the last character of an autocorrected word and the bulk-replace
+    /// action — simulates the brief gap while the autocorrect system applies (v2 Phase 7).
+    /// Typically 50–250 ms, deliberately faster than human backspacing.
+    /// </summary>
+    public int AutocorrectDelayMs() => (int)(50 + _rng.NextDouble() * 200);
 
     /// <summary>
     /// How many characters the typist types *after* the error before noticing it (v2 Phase 6).
