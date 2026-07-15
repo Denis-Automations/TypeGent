@@ -9,9 +9,9 @@ namespace TypeGent.Core.Typing;
 /// Drives a sequence of <see cref="TimedAction"/>s against an <see cref="IKeyboardBackend"/>:
 /// wait the delay, dispatch the action, repeat — bailing out promptly on cancellation.
 /// <para>
-/// Phase 2 note: there is no human-timing model yet. The orchestrator simply waits the
-/// delay carried by each <see cref="TimedAction"/>. The HumanTypingEngine (Phase 4) is what
-/// will produce realistic delays for it to consume.
+/// Phase 9 note: when a <see cref="TimedAction"/> carries a non-null <see cref="TimedAction.HoldMs"/>,
+/// the orchestrator expands it into a <see cref="KeyAction.KeyDown"/> → wait hold → <see cref="KeyAction.KeyUp"/>
+/// sequence instead of an atomic press. The existing path (HoldMs == null) is unchanged.
 /// </para>
 /// </summary>
 public sealed class TypingOrchestrator(IKeyboardBackend backend, ILogger<TypingOrchestrator>? logger = null)
@@ -39,8 +39,59 @@ public sealed class TypingOrchestrator(IKeyboardBackend backend, ILogger<TypingO
 
             ct.ThrowIfCancellationRequested();
 
-            _logger.LogTrace("Dispatching {Action}", timed.Action);
-            await _backend.ExecuteAsync(timed.Action, ct).ConfigureAwait(false);
+            // ── Phase 9: down/up expansion ────────────────────────────────────────────
+            // When HoldMs is set, expand Press → KeyDown + hold + KeyUp, and
+            // Chord → KeyDown(mod) + KeyDown(base) + hold + KeyUp(base) + KeyUp(mod).
+            // Text has no separate down/up concept and always uses the atomic path.
+            if (timed.HoldMs.HasValue && timed.Action is not KeyAction.Text)
+            {
+                var holdSpan = TimeSpan.FromMilliseconds(timed.HoldMs.Value);
+
+                switch (timed.Action)
+                {
+                    case KeyAction.Press press:
+                        _logger.LogTrace("KeyDown {Key}", press.Key);
+                        await _backend.ExecuteAsync(new KeyAction.KeyDown(press.Key), ct).ConfigureAwait(false);
+
+                        ct.ThrowIfCancellationRequested();
+                        if (holdSpan > TimeSpan.Zero)
+                            await Task.Delay(holdSpan, ct).ConfigureAwait(false);
+
+                        ct.ThrowIfCancellationRequested();
+                        _logger.LogTrace("KeyUp {Key}", press.Key);
+                        await _backend.ExecuteAsync(new KeyAction.KeyUp(press.Key), ct).ConfigureAwait(false);
+                        break;
+
+                    case KeyAction.Chord chord:
+                        _logger.LogTrace("KeyDown {Mod}, KeyDown {Base}", chord.Modifier, chord.Base);
+                        await _backend.ExecuteAsync(new KeyAction.KeyDown(chord.Modifier), ct).ConfigureAwait(false);
+                        ct.ThrowIfCancellationRequested();
+                        await _backend.ExecuteAsync(new KeyAction.KeyDown(chord.Base), ct).ConfigureAwait(false);
+
+                        ct.ThrowIfCancellationRequested();
+                        if (holdSpan > TimeSpan.Zero)
+                            await Task.Delay(holdSpan, ct).ConfigureAwait(false);
+
+                        ct.ThrowIfCancellationRequested();
+                        _logger.LogTrace("KeyUp {Base}, KeyUp {Mod}", chord.Base, chord.Modifier);
+                        await _backend.ExecuteAsync(new KeyAction.KeyUp(chord.Base), ct).ConfigureAwait(false);
+                        ct.ThrowIfCancellationRequested();
+                        await _backend.ExecuteAsync(new KeyAction.KeyUp(chord.Modifier), ct).ConfigureAwait(false);
+                        break;
+
+                    // KeyDown / KeyUp passed directly (e.g. from a future pre-expanded stream)
+                    default:
+                        _logger.LogTrace("Dispatching {Action}", timed.Action);
+                        await _backend.ExecuteAsync(timed.Action, ct).ConfigureAwait(false);
+                        break;
+                }
+            }
+            else
+            {
+                // ── Legacy atomic path (HoldMs == null) ──────────────────────────────
+                _logger.LogTrace("Dispatching {Action}", timed.Action);
+                await _backend.ExecuteAsync(timed.Action, ct).ConfigureAwait(false);
+            }
         }
     }
 

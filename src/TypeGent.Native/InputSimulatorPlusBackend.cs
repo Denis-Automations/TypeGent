@@ -11,9 +11,11 @@ namespace TypeGent.Native;
 /// The production <see cref="IKeyboardBackend"/>: translates <see cref="KeyAction"/>s into
 /// real keystrokes via InputSimulatorPlus (SendInput under the hood).
 /// <list type="bullet">
-///   <item><see cref="KeyAction.Press"/> → <c>Keyboard.KeyPress</c> (single key).</item>
+///   <item><see cref="KeyAction.Press"/> → <c>Keyboard.KeyPress</c> (atomic down+up).</item>
 ///   <item><see cref="KeyAction.Chord"/> → <c>Keyboard.ModifiedKeyStroke</c> (e.g. Shift+,).</item>
 ///   <item><see cref="KeyAction.Text"/> → <c>Keyboard.TextEntry</c> (Unicode / VK_PACKET fallback).</item>
+///   <item><see cref="KeyAction.KeyDown"/> → <c>Keyboard.KeyDown</c> (Phase 9 – press without release).</item>
+///   <item><see cref="KeyAction.KeyUp"/> → <c>Keyboard.KeyUp</c> (Phase 9 – release a held key).</item>
 /// </list>
 /// Our <see cref="VirtualKey"/> values equal the Win32 VK_* codes, which are exactly the
 /// numeric values of <see cref="VirtualKeyCode"/>, so the mapping is a plain cast.
@@ -55,6 +57,15 @@ public sealed class InputSimulatorPlusBackend : IKeyboardBackend
                 {
                     _sim.Keyboard.TextEntry(text.Value);
                 }
+                break;
+
+            // ── Phase 9: independent down / up events ────────────────────────────────
+            case KeyAction.KeyDown kd:
+                _sim.Keyboard.KeyDown(ToVk(kd.Key));
+                break;
+
+            case KeyAction.KeyUp ku:
+                _sim.Keyboard.KeyUp(ToVk(ku.Key));
                 break;
 
             default:

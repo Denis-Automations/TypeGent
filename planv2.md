@@ -318,9 +318,9 @@ instead of only `SimulateKeyPress`. Preserve the Unicode `VK_PACKET` fallback pa
 
 **Success criteria (all must pass):**
 
-- [ ] Keystrokes emit as separate down/up events with a schedulable hold; VK_PACKET fallback unaffected.
-- [ ] Cancellation (Stop/Escape) still halts promptly.
-- [ ] All prior tests migrated/green.
+- [x] Keystrokes emit as separate down/up events with a schedulable hold; VK_PACKET fallback unaffected.
+- [x] Cancellation (Stop/Escape) still halts promptly.
+- [x] All prior tests migrated/green.
 
 **Definition of done:** The engine can express and the backend can deliver independent key-down/key-up
 events — the foundation for dwell/flight/rollover.
