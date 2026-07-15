@@ -63,6 +63,26 @@ public sealed class TypingProfile
     public bool AutocorrectEnabled { get; init; } = false;
 
     /// <summary>
+    /// Whether to sample a near-Gaussian key-hold (dwell) duration for each keystroke and
+    /// deliver it as a separate key-down / key-up pair (v2 Phase 10). Requires the Phase 9
+    /// down/up event model. Defaults to <see langword="false"/> so existing seeded plans keep
+    /// their RNG draw order — the app enables it.
+    /// </summary>
+    public bool DwellEnabled { get; init; } = false;
+
+    /// <summary>
+    /// Mean key-hold (dwell) duration in milliseconds (v2 Phase 10).
+    /// Research median for skilled typists is ~90 ms (PMC8606350).
+    /// </summary>
+    public double DwellMeanMs { get; init; } = 90.0;
+
+    /// <summary>
+    /// Standard deviation of the dwell distribution in milliseconds (v2 Phase 10).
+    /// Dwell is notably more Gaussian (less skewed) than flight time; σ ≈ 12 ms is typical.
+    /// </summary>
+    public double DwellSigmaMs { get; init; } = 12.0;
+
+    /// <summary>
     /// The median inter-key interval implied by <see cref="Wpm"/>: 60000 / (Wpm * 5).
     /// At 60 WPM this is 200 ms.
     /// </summary>

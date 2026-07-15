@@ -7,6 +7,11 @@ namespace TypeGent.Core.HumanTyping;
 /// word/punctuation/sentence boundaries, bigram familiarity, fatigue, warm-up) scale the result,
 /// then an optional attention lapse can add a multi-second stall.
 /// <para>
+/// v2 Phase 10 adds <see cref="SampleDwellMs"/> for the near-Gaussian key-hold (dwell) duration.
+/// When <see cref="TypingProfile.DwellEnabled"/> is false, <see cref="SampleDwellMs"/> is never
+/// called, so existing seeded plans keep their RNG draw order unchanged.
+/// </para>
+/// <para>
 /// The RNG is injected so a fixed seed reproduces a whole plan; never <c>new Random()</c> here.
 /// The lapse draw is the only new RNG consumer in v2 Phase 1; it sits at a fixed point at the end
 /// of <see cref="SampleDelayMs"/> and is skipped entirely when the rate is 0, so existing seeded
@@ -24,6 +29,18 @@ public sealed class DelayModel
     public const double FloorMs = 45.0;
 
     public const double MaxDelayMs = 2000.0;
+
+    /// <summary>
+    /// Physiological minimum dwell time (ms): a 30 ms guard against unrealistic tail samples
+    /// from the near-normal distribution (v2 Phase 10).
+    /// </summary>
+    public const double DwellMinMs = 30.0;
+
+    /// <summary>
+    /// Physiological maximum dwell time (ms): a 200 ms guard (v2 Phase 10).
+    /// A held key beyond this is more likely a sticky-key or OS auto-repeat event.
+    /// </summary>
+    public const double DwellMaxMs = 200.0;
 
     // High-frequency English words that need less pre-word planning time (v2 Phase 4, §2.3).
     // Covers ~65 % of tokens in typical running text. Case-insensitive comparison.
@@ -143,6 +160,25 @@ public sealed class DelayModel
     /// list used by the pre-word planning-pause formula (v2 Phase 4).
     /// </summary>
     public static bool IsCommonWord(string word) => CommonWords.Contains(word);
+
+    /// <summary>
+    /// Sample a key-hold (dwell) duration in milliseconds from a near-normal distribution
+    /// (v2 Phase 10, §3.1). Dwell is more Gaussian than flight time; a tight near-normal is
+    /// the established model.
+    /// <para>
+    /// Formula: <c>clamp(meanMs + sigmaMs · Z, DwellMinMs, DwellMaxMs)</c> where Z is standard
+    /// normal (Box–Muller, two RNG draws). Draw order: fixed position — only called when
+    /// <see cref="TypingProfile.DwellEnabled"/> is true, so seeded plans with dwell off are
+    /// unaffected.
+    /// </para>
+    /// </summary>
+    /// <param name="meanMs">Mean dwell; research median ~90 ms for skilled typists.</param>
+    /// <param name="sigmaMs">Std-dev of dwell; typically ~12 ms (tight near-normal).</param>
+    public double SampleDwellMs(double meanMs, double sigmaMs)
+    {
+        var dwell = meanMs + sigmaMs * NextGaussian();
+        return Math.Clamp(dwell, DwellMinMs, DwellMaxMs);
+    }
 
     private static double BoundaryMultiplier(TypingContext ctx)
     {

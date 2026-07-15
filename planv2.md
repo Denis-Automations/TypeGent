@@ -340,8 +340,8 @@ Sample hold time per key from a near-normal distribution (small σ), feed it int
 
 **Success criteria (all must pass):**
 
-- [ ] Per-key dwell is sampled from a tight near-normal distribution and delivered by the backend.
-- [ ] Determinism preserved; all prior tests green.
+- [x] Per-key dwell is sampled from a tight near-normal distribution and delivered by the backend.
+- [x] Determinism preserved; all prior tests green.
 
 **Definition of done:** Keys are held for a realistic, near-Gaussian dwell time.
 

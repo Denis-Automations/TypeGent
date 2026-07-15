@@ -29,6 +29,9 @@ public sealed class HumanTypingEngine
         var errors = new ErrorModel(_rng);
         var baseDelay = profile.BaseDelayMs;
         var backspace = new KeyAction.Press(VirtualKey.Back);
+        var dwellEnabled = profile.DwellEnabled;
+        var dwellMean = profile.DwellMeanMs;
+        var dwellSigma = profile.DwellSigmaMs;
 
         var prev = '\0';
         var i = 0;
@@ -64,8 +67,20 @@ public sealed class HumanTypingEngine
             };
         }
 
-        TimedAction Key(char c, double delayMs) =>
-            new(TimeSpan.FromMilliseconds(delayMs), layout.ToAction(c));
+        // Build a TimedAction for a regular character keystroke.
+        // When DwellEnabled, the action carries a near-Gaussian HoldMs so the orchestrator
+        // splits it into KeyDown → wait → KeyUp (Phase 9/10). Text (Unicode fallback) and
+        // backspace actions always use HoldMs = null (legacy atomic path).
+        TimedAction Key(char c, double delayMs)
+        {
+            var action = layout.ToAction(c);
+            var hold = dwellEnabled && action is not KeyAction.Text
+                ? delays.SampleDwellMs(dwellMean, dwellSigma)
+                : (double?)null;
+            return new TimedAction(TimeSpan.FromMilliseconds(delayMs), action, hold);
+        }
+
+        // Backspace: no dwell — mechanical repeat key, always atomic.
         TimedAction Back(double delayMs) =>
             new(TimeSpan.FromMilliseconds(delayMs), backspace);
 
