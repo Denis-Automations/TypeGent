@@ -8,6 +8,17 @@ namespace TypeGent.Core.HumanTyping;
 /// occasional mechanical typos and cognitive misspellings, all net-corrected so the net typed
 /// text always equals the input. The single injected <see cref="Random"/> is threaded into both
 /// the <see cref="DelayModel"/> and <see cref="ErrorModel"/>, so one seed reproduces an entire plan.
+/// <para>
+/// v2 Phase 11: when both <see cref="TypingProfile.DwellEnabled"/> and
+/// <see cref="TypingProfile.RolloverEnabled"/> are true, the happy-path keystrokes are
+/// pre-expanded into a <see cref="KeyAction.KeyDown"/> + <see cref="KeyAction.KeyUp"/> pair.
+/// The delay before <c>KeyDown</c> is the UD flight (sampled by <see cref="DelayModel.SampleDelayMs"/>);
+/// the delay before <c>KeyUp</c> is the dwell (from <see cref="DelayModel.SampleDwellMs"/>).
+/// For rollover-eligible bigrams where <see cref="DelayModel.ShouldRollover"/> fires, the next
+/// <c>KeyDown</c> delay is clamped to <see cref="RolloverFlightMs"/> (~0 ms) so the key-up of
+/// the prior key arrives in the stream immediately before the next key-down — the closest
+/// approximation to physical overlap achievable without event reordering.
+/// </para>
 /// </summary>
 public sealed class HumanTypingEngine
 {
@@ -32,6 +43,9 @@ public sealed class HumanTypingEngine
         var dwellEnabled = profile.DwellEnabled;
         var dwellMean = profile.DwellMeanMs;
         var dwellSigma = profile.DwellSigmaMs;
+        // Phase 11: rollover approximation — only active when dwell is on too.
+        var rolloverEnabled = profile.RolloverEnabled && dwellEnabled;
+        var rolloverProb = profile.RolloverProbability;
 
         var prev = '\0';
         var i = 0;
@@ -68,9 +82,11 @@ public sealed class HumanTypingEngine
         }
 
         // Build a TimedAction for a regular character keystroke.
-        // When DwellEnabled, the action carries a near-Gaussian HoldMs so the orchestrator
-        // splits it into KeyDown → wait → KeyUp (Phase 9/10). Text (Unicode fallback) and
-        // backspace actions always use HoldMs = null (legacy atomic path).
+        // When DwellEnabled (but NOT RolloverEnabled), the action carries a near-Gaussian HoldMs
+        // so the orchestrator splits it into KeyDown → wait → KeyUp (Phase 9/10 path).
+        // Text (Unicode fallback) and backspace actions always use HoldMs = null (legacy atomic).
+        // When both DwellEnabled AND RolloverEnabled (Phase 11), use PhaseKey() for the happy path;
+        // this method remains the fallback for error-correction and misspelling-retype paths.
         TimedAction Key(char c, double delayMs)
         {
             var action = layout.ToAction(c);
@@ -83,6 +99,17 @@ public sealed class HumanTypingEngine
         // Backspace: no dwell — mechanical repeat key, always atomic.
         TimedAction Back(double delayMs) =>
             new(TimeSpan.FromMilliseconds(delayMs), backspace);
+
+        // Phase 11: returns true when the prev→cur bigram is physically capable of rollover.
+        // Same-finger bigrams are excluded (physically impossible to roll onto the same finger).
+        // Also excludes word-start boundaries and non-letter prev chars.
+        static bool IsRolloverEligible(char prevC, char curC, KeyboardLayout lay)
+        {
+            if (prevC == '\0' || prevC == ' ' || curC == ' ') return false;
+            if (!lay.TryGetMeta(prevC, out var pm)) return false;
+            if (!lay.TryGetMeta(curC,  out var cm)) return false;
+            return pm.Finger != cm.Finger;  // alt-hand or same-hand-diff-finger: eligible
+        }
 
         IEnumerable<TimedAction> DelayedCorrection(int delayChars, int errorTextSpan, int backspaceCount, char tempPrev, TypingContext errCtx)
         {
@@ -319,7 +346,37 @@ public sealed class HumanTypingEngine
             }
             else
             {
-                yield return Key(c, delays.SampleDelayMs(baseDelay, ctx));
+                // ── Phase 11: dwell + flight pre-expansion (happy path only) ─────────────
+                // When both dwell and rollover are active, emit KeyDown + KeyUp directly so
+                // the orchestrator can see the correct event ordering. The UD (flight) delay
+                // before KeyDown is sampled as usual; the DU (dwell) delay before KeyUp comes
+                // from SampleDwellMs. For rollover-eligible bigrams where ShouldRollover fires,
+                // the UD delay is clamped to RolloverFlightMs (≈ 0) so the next KeyDown arrives
+                // in the stream immediately after the prior KeyUp — the closest sequential
+                // approximation to physical overlap without event reordering.
+                //
+                // Falls back to the Phase 10 HoldMs path for:
+                //   • Chord actions (shifted keys — modifier interaction is complex)
+                //   • Text (Unicode fallback — no down/up concept)
+                //   • RolloverEnabled=false or DwellEnabled=false
+                if (rolloverEnabled && layout.CanMap(c) && !layout.NeedsShift(c))
+                {
+                    var vk = layout.MapChar(c);
+                    var ud = delays.SampleDelayMs(baseDelay, ctx);  // UD flight (after prev KeyUp)
+                    var dwell = delays.SampleDwellMs(dwellMean, dwellSigma);  // DU hold duration
+
+                    // Rollover: if eligible, consume one RNG draw to decide.
+                    if (IsRolloverEligible(prev, c, layout) && delays.ShouldRollover(rolloverProb))
+                        ud = DelayModel.RolloverFlightMs;  // near-zero: key-N+1 down immediately after key-N up
+
+                    yield return new TimedAction(TimeSpan.FromMilliseconds(ud), new KeyAction.KeyDown(vk));
+                    yield return new TimedAction(TimeSpan.FromMilliseconds(dwell), new KeyAction.KeyUp(vk));
+                }
+                else
+                {
+                    // Phase 9/10 HoldMs path (Chord, Text, dwell-only, or rollover off)
+                    yield return Key(c, delays.SampleDelayMs(baseDelay, ctx));
+                }
                 prev = c;
                 i++;
             }

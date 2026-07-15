@@ -83,6 +83,29 @@ public sealed class TypingProfile
     public double DwellSigmaMs { get; init; } = 12.0;
 
     /// <summary>
+    /// Whether to use the key-rollover approximation on fast alternating-hand and
+    /// same-hand-different-finger bigrams (v2 Phase 11, §3.3). When enabled and
+    /// <see cref="DwellEnabled"/> is true, the engine emits a pre-expanded
+    /// <c>KeyDown</c> + <c>KeyUp</c> stream where rollover keystrokes receive a
+    /// near-zero flight gap (UD ≈ 0 ms) between the previous key-up and the next
+    /// key-down, approximating the overlap seen in fast touch-typists.
+    /// <para>
+    /// Defaults to <see langword="false"/> so existing seeded plans keep their RNG draw
+    /// order — each rollover-eligible bigram consumes one extra <c>NextDouble</c> draw
+    /// only when this flag is true.
+    /// </para>
+    /// </summary>
+    public bool RolloverEnabled { get; init; } = false;
+
+    /// <summary>
+    /// Probability (0–1) that each rollover-eligible bigram actually uses the
+    /// key-overlap approximation (v2 Phase 11). Research reports 40–70 % overlap
+    /// for fast touch-typists; default 0.55 is the midpoint. Only meaningful when
+    /// <see cref="RolloverEnabled"/> is true.
+    /// </summary>
+    public double RolloverProbability { get; init; } = 0.55;
+
+    /// <summary>
     /// The median inter-key interval implied by <see cref="Wpm"/>: 60000 / (Wpm * 5).
     /// At 60 WPM this is 200 ms.
     /// </summary>

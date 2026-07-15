@@ -367,9 +367,9 @@ prior up).
 
 **Success criteria (all must pass):**
 
-- [ ] IKI decomposes into dwell + flight; flight is heavy-tailed, dwell near-normal.
-- [ ] Rollover produces the configured overlap fraction for fast personas.
-- [ ] All prior tests green.
+- [x] IKI decomposes into dwell + flight; flight is heavy-tailed, dwell near-normal.
+- [x] Rollover produces the configured overlap fraction for fast personas.
+- [x] All prior tests green.
 
 **Definition of done:** Timing is expressed as dwell + flight with realistic rollover — full
 keystroke-biometric realism.

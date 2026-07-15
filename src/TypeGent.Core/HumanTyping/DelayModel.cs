@@ -7,7 +7,8 @@ namespace TypeGent.Core.HumanTyping;
 /// word/punctuation/sentence boundaries, bigram familiarity, fatigue, warm-up) scale the result,
 /// then an optional attention lapse can add a multi-second stall.
 /// <para>
-/// v2 Phase 10 adds <see cref="SampleDwellMs"/> for the near-Gaussian key-hold (dwell) duration.
+/// v2 Phase 10 adds <see cref="SampleDwellMs"/> for the near-Gaussian key-hold (dwell) duration;
+/// v2 Phase 11 adds <see cref="ShouldRollover"/> for the key-overlap (negative-flight) decision.
 /// When <see cref="TypingProfile.DwellEnabled"/> is false, <see cref="SampleDwellMs"/> is never
 /// called, so existing seeded plans keep their RNG draw order unchanged.
 /// </para>
@@ -41,6 +42,14 @@ public sealed class DelayModel
     /// A held key beyond this is more likely a sticky-key or OS auto-repeat event.
     /// </summary>
     public const double DwellMaxMs = 200.0;
+
+    /// <summary>
+    /// The UD flight gap (ms) used for the rollover approximation (v2 Phase 11).
+    /// When <see cref="ShouldRollover"/> fires on an eligible bigram, the next
+    /// <c>KeyDown</c> is scheduled with this delay after the previous <c>KeyUp</c>,
+    /// giving a zero-gap that approximates physical key overlap without event reordering.
+    /// </summary>
+    public const double RolloverFlightMs = 0.0;
 
     // High-frequency English words that need less pre-word planning time (v2 Phase 4, §2.3).
     // Covers ~65 % of tokens in typical running text. Case-insensitive comparison.
@@ -179,6 +188,18 @@ public sealed class DelayModel
         var dwell = meanMs + sigmaMs * NextGaussian();
         return Math.Clamp(dwell, DwellMinMs, DwellMaxMs);
     }
+
+    /// <summary>
+    /// Returns <see langword="true"/> with probability <paramref name="probability"/> — one
+    /// <see cref="Random.NextDouble"/> draw — indicating that this bigram should use the rollover
+    /// approximation (key-N+1 pressed before key-N is released, v2 Phase 11 §3.3).
+    /// <para>
+    /// <b>Only call when <see cref="TypingProfile.RolloverEnabled"/> is true.</b>  Calling
+    /// unconditionally would shift the RNG draw order for seeded plans that have rollover off
+    /// (see <c>docs/v2-invariants.md</c> §1).
+    /// </para>
+    /// </summary>
+    public bool ShouldRollover(double probability) => _rng.NextDouble() < probability;
 
     private static double BoundaryMultiplier(TypingContext ctx)
     {
