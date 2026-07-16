@@ -7,7 +7,7 @@
         xmlns:conv="clr-namespace:TypeGent.App.Converters"
         xmlns:vm="clr-namespace:TypeGent.App.ViewModels"
         mc:Ignorable="d"
-        Title="TypeGent" Height="640" Width="640" MinHeight="600" MinWidth="520"
+        Title="TypeGent - Fokas Systems" Height="640" Width="640" MinHeight="600" MinWidth="520"
         Icon="Assets/TypeGent.ico"
         Topmost="{Binding Topmost}"
         d:DataContext="{d:DesignInstance vm:MainViewModel}">

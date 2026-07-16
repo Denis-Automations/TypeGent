@@ -2,7 +2,7 @@
   <img src="assets/logo.png" alt="TypeGent logo" width="220" />
 </p>
 
-<h1 align="center">TypeGent</h1>
+<h1 align="center">TypeGent - Fokas Systems</h1>
 
 <p align="center">A human-like auto-typer for Windows.</p>
 
