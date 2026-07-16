@@ -30,9 +30,32 @@ from `new Random(99)` must produce identical action lists.
 
 **What v2 phases must watch.** Phase 2 (AR(1) pace) makes `DelayModel` *stateful* — the pace scalar
 is drawn from the RNG, so it is a new consumer. Insert its draw at a stable, documented point in the
-per-character sequence and keep it there. Phase 5 (speed-coupled typo rate) and Phase 10 (dwell)
-add further draws; each must slot into a fixed position in the draw order. When in doubt: re-run
-`SameSeed_ReproducesIdenticalPlan` after every change that touches the RNG.
+per-character sequence and keep it there. When in doubt: re-run `SameSeed_ReproducesIdenticalPlan`
+after every change that touches the RNG.
+
+**Gated RNG consumers (off by default).** Each is skipped entirely when its flag is off, so a
+deterministic seeded plan built from the defaults consumes no extra draws and stays reproducible.
+The app turns these on via the Full-realism toggle (Phase A1) / persona (Phase 12). Per happy-path
+character (all features on) they slot into the draw order as:
+
+- **Pace AR(1)** — `Pace = true` → one Gaussian (two uniforms) inside `SampleDelayMs`, before the
+  lapse roll (Phase 2).
+- **Lapse** — `LapseRate > 0` → one `NextDouble` at the end of `SampleDelayMs` (Phase 1 §1.5).
+- **Speed-coupled typo** — `TypoRate > 0` → `ShouldIntroduceTypo` / `ChooseKind` / per-kind draws
+  in `ErrorModel`, before the happy-path delay is sampled (Phase 5).
+- **Cognitive misspelling** — `MisspellingRate > 0` → one `NextDouble` via
+  `ShouldApplyMisspelling` at each word start, before per-char processing (Phase 7); skipped
+  entirely when the rate is 0.
+- **Dwell** — `DwellEnabled = true` → one Gaussian (two uniforms) via `SampleDwellMs` per
+  keystroke on the down/up path, after `SampleDelayMs` (Phase 10); never called when dwell is off.
+- **Rollover** — `RolloverEnabled = true` (requires dwell) → one `NextDouble` via
+  `ShouldRollover` per rollover-eligible bigram, after the dwell draw and only on the rollover
+  branch (Phase 11); when it fires, a second `NextDouble` via `SampleOverlapMs` (8–25 ms,
+  Phase A4) determines the overlap duration that produces true negative flight.
+
+Each consumer is gated so a seeded plan with the flag off consumes no extra draws, preserving
+reproducibility. The `SameSeed_*` determinism tests cover the pace, misspelling, and rollover
+consumers; any new gated consumer ships with an equivalent test and a documented draw position.
 
 ---
 

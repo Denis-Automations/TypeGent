@@ -96,6 +96,58 @@ public class CognitiveErrorTests
     }
 
     // ----------------------------------------------------------------
+    // 7.1b  Phase A5 — dictionary cleanliness guards
+    // ----------------------------------------------------------------
+
+    [Fact]
+    public void MisspellingDictionary_HasNoNoOpEntries()
+    {
+        // No entry should map a word to itself — those are dead data (TryGet filters them,
+        // but they shouldn't exist in the first place after the A5 cleanup).
+        var noOps = MisspellingDictionary.Entries
+            .Where(kv => string.Equals(kv.Key, kv.Value, StringComparison.OrdinalIgnoreCase))
+            .Select(kv => kv.Key)
+            .ToList();
+
+        noOps.Should().BeEmpty("no entry should map a word to itself (a no-op)");
+    }
+
+    [Fact]
+    public void MisspellingDictionary_DuplicateKeys_AreDeduplicatedToCanonicalEntry()
+    {
+        // "occurrence" previously appeared twice (occurence / occurrance); the second silently
+        // overwrote the first. After A5 a single canonical entry must remain.
+        MisspellingDictionary.TryGet("occurrence", out var occ).Should().BeTrue();
+        occ.Should().Be("occurence",
+            "the duplicate 'occurrence' entry is collapsed to one canonical misspelling");
+    }
+
+    [Fact]
+    public void MisspellingDictionary_ExcludesWrongWordHomophones()
+    {
+        // Phase A5: wrong-word homophone substitutions are pruned — Phase 7 is strictly
+        // orthographic misspellings, so these must no longer resolve.
+        foreach (var word in new[] { "accept", "except", "affect", "effect",
+                                     "principal", "stationary", "compliment",
+                                     "discrete", "ensure", "weather", "whether" })
+        {
+            MisspellingDictionary.TryGet(word, out _).Should().BeFalse(
+                $"'{word}' is a wrong-word homophone, not an orthographic misspelling, and must not be in the dictionary");
+        }
+    }
+
+    [Fact]
+    public void MisspellingDictionary_RetainsOrthographicMisspellings()
+    {
+        // Sanity check that the A5 cleanup kept the core orthographic entries intact.
+        MisspellingDictionary.TryGet("receive",    out var r).Should().BeTrue();   r.Should().Be("recieve");
+        MisspellingDictionary.TryGet("separate",   out var s).Should().BeTrue();   s.Should().Be("seperate");
+        MisspellingDictionary.TryGet("definitely", out var d).Should().BeTrue();   d.Should().Be("definately");
+        MisspellingDictionary.TryGet("committee",  out var c).Should().BeTrue();   c.Should().Be("commitee");
+        MisspellingDictionary.TryGet("occurrence", out var o).Should().BeTrue();   o.Should().Be("occurence");
+    }
+
+    // ----------------------------------------------------------------
     // 7.2  Net-text invariant with misspellings (human backspace mode)
     // ----------------------------------------------------------------
 

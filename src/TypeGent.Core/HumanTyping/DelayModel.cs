@@ -44,12 +44,17 @@ public sealed class DelayModel
     public const double DwellMaxMs = 200.0;
 
     /// <summary>
-    /// The UD flight gap (ms) used for the rollover approximation (v2 Phase 11).
-    /// When <see cref="ShouldRollover"/> fires on an eligible bigram, the next
-    /// <c>KeyDown</c> is scheduled with this delay after the previous <c>KeyUp</c>,
-    /// giving a zero-gap that approximates physical key overlap without event reordering.
+    /// Minimum key-overlap duration (ms): when rollover fires, the previous key's
+    /// <c>KeyUp</c> is deferred this many milliseconds after the next key's <c>KeyDown</c>,
+    /// producing a true negative flight (v2 Phase 11 / A4).
     /// </summary>
-    public const double RolloverFlightMs = 0.0;
+    public const double OverlapMinMs = 8.0;
+
+    /// <summary>
+    /// Maximum key-overlap duration (ms): the upper bound of the near-uniform overlap
+    /// distribution (v2 Phase 11 / A4).
+    /// </summary>
+    public const double OverlapMaxMs = 25.0;
 
     // High-frequency English words that need less pre-word planning time (v2 Phase 4, §2.3).
     // Covers ~65 % of tokens in typical running text. Case-insensitive comparison.
@@ -200,6 +205,19 @@ public sealed class DelayModel
     /// </para>
     /// </summary>
     public bool ShouldRollover(double probability) => _rng.NextDouble() < probability;
+
+    /// <summary>
+    /// Sample the overlap duration (ms) for a rollover bigram — a near-uniform draw in
+    /// [<see cref="OverlapMinMs"/>, <see cref="OverlapMaxMs"/>] (v2 Phase 11 / A4). This is the
+    /// delay between the next key's <c>KeyDown</c> and the previous key's <c>KeyUp</c>, giving a
+    /// true negative flight of <c>−overlap</c>.
+    /// <para>
+    /// <b>Only call when <see cref="TypingProfile.RolloverEnabled"/> is true and
+    /// <see cref="ShouldRollover"/> returned true.</b>  Calling unconditionally would shift the
+    /// RNG draw order for seeded plans that have rollover off (see <c>docs/v2-invariants.md</c> §1).
+    /// </para>
+    /// </summary>
+    public double SampleOverlapMs() => OverlapMinMs + _rng.NextDouble() * (OverlapMaxMs - OverlapMinMs);
 
     private static double BoundaryMultiplier(TypingContext ctx)
     {

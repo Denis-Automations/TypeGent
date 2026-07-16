@@ -20,6 +20,11 @@ public sealed class EnumLabelConverter : IValueConverter
         HotKeyKind.CtrlShiftSpace => "Ctrl+Shift+Space",
         HotKeyKind.CtrlAltT => "Ctrl+Alt+T",
         HotKeyKind.F8 => "F8",
+        PersonaKind.HuntAndPeck => "Hunt & peck",
+        PersonaKind.Average => "Average typist",
+        PersonaKind.FastTouchTypist => "Fast touch-typist",
+        PersonaKind.MobileAutocorrect => "Mobile / autocorrect",
+        PersonaKind.Custom => "Custom",
         _ => value?.ToString() ?? string.Empty,
     };
 

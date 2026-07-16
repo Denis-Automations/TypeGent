@@ -43,6 +43,56 @@ public class HumanTypingEngineTests
         return sb.ToString();
     }
 
+    // Reconstruct net typed text from a stream that may use ANY action variant, including the
+    // Phase 9–11 KeyDown/KeyUp (dwell/rollover) path. Press/Chord/Text and backspaces are
+    // handled as in Reconstruct; a KeyDown appends the unshifted character for its VK (the
+    // rollover happy path only emits KeyDown for unshifted mappable chars) and a KeyUp produces
+    // nothing. Used by the Phase A1 realism-on/off profile tests.
+    internal static string ReconstructAll(IEnumerable<TimedAction> actions, KeyboardLayout layout)
+    {
+        var unshifted = new Dictionary<VirtualKey, char>();
+        var shifted = new Dictionary<VirtualKey, char>();
+        foreach (var ch in layout.SupportedChars)
+        {
+            var vk = layout.MapChar(ch);
+            if (layout.NeedsShift(ch)) shifted[vk] = ch;
+            else unshifted[vk] = ch;
+        }
+
+        var sb = new StringBuilder();
+        foreach (var t in actions)
+        {
+            switch (t.Action)
+            {
+                case KeyAction.Press p when p.Key == VirtualKey.Back:
+                    if (sb.Length > 0) sb.Length--;
+                    break;
+                case KeyAction.Press p:
+                    unshifted.TryGetValue(p.Key, out var uc).Should().BeTrue(
+                        $"Press of VK {p.Key} should map to an unshifted character");
+                    sb.Append(uc);
+                    break;
+                case KeyAction.Chord ch:
+                    shifted.TryGetValue(ch.Base, out var sc).Should().BeTrue(
+                        $"Chord base VK {ch.Base} should map to a shifted character");
+                    sb.Append(sc);
+                    break;
+                case KeyAction.Text text:
+                    sb.Append(text.Value);
+                    break;
+                case KeyAction.KeyDown kd:
+                    unshifted.TryGetValue(kd.Key, out var dc).Should().BeTrue(
+                        $"KeyDown of VK {kd.Key} should map to an unshifted character");
+                    sb.Append(dc);
+                    break;
+                case KeyAction.KeyUp:
+                    break;
+            }
+        }
+
+        return sb.ToString();
+    }
+
     [Fact]
     public void HighTypoRate_ProducesBackspaces()
     {
@@ -116,5 +166,96 @@ public class HumanTypingEngineTests
         var actions = new HumanTypingEngine(new Random(7)).Plan(input, profile, Layout);
 
         Reconstruct(actions, Layout).Should().Be(input);
+    }
+
+    // ── Phase A1: runtime realism-on/off profile (mirrors MainViewModel.RunTypingAsync) ──────
+    // The shipping app builds its TypingProfile from the Full-realism toggle. These verify the
+    // net-text==input invariant under that exact configuration, and that the toggle actually
+    // switches the Phase 9–11 down/up path on and off.
+
+    private static TypingProfile AppRealismProfile(bool fullRealism, double misspellingRate) => new()
+    {
+        Wpm = 60,
+        Jitter = 0.35,
+        TypoRate = 0.02,
+        Fatigue = true,
+        WarmUp = true,
+        Pace = true,
+        LapseRate = 0.005,
+        DwellEnabled = fullRealism,
+        RolloverEnabled = fullRealism,
+        RolloverProbability = 0.55,
+        MisspellingRate = misspellingRate,
+        AutocorrectEnabled = false,
+        DwellMeanMs = 90.0,
+        DwellSigmaMs = 12.0,
+    };
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void NetTypedText_AppRealismProfile_AlwaysEqualsInput(bool fullRealism)
+    {
+        // Misspelling-rich paragraph so the cognitive path is exercised alongside the
+        // biometric down/up layer under the app's default realism-on profile.
+        const string input =
+            "I believe you should receive the committee report and separate the " +
+            "necessary documents because they definitely contain important information. " +
+            "The quick brown fox jumps over 13 lazy dogs!";
+
+        for (var seed = 0; seed < 40; seed++)
+        {
+            var profile = AppRealismProfile(fullRealism, fullRealism ? 0.02 : 0.0);
+            var actions = new HumanTypingEngine(new Random(seed)).Plan(input, profile, Layout);
+            ReconstructAll(actions, Layout)
+                .Should().Be(input,
+                    $"net-text invariant must hold with FullRealism={fullRealism}, seed={seed}");
+        }
+    }
+
+    [Fact]
+    public void RealismOnProfile_EmitsKeyDownKeyUpEvents()
+    {
+        const string input = "the quick brown fox jumps over the lazy dog";
+        var actions = new HumanTypingEngine(new Random(42)).Plan(input, AppRealismProfile(true, 0.02), Layout).ToList();
+
+        actions.Any(a => a.Action is KeyAction.KeyDown).Should().BeTrue(
+            "Full realism on must activate the Phase 9–11 down/up path");
+        actions.Any(a => a.Action is KeyAction.KeyUp).Should().BeTrue();
+    }
+
+    [Fact]
+    public void RealismOffProfile_UsesAtomicPath_NoKeyDownKeyUp()
+    {
+        const string input = "the quick brown fox jumps over the lazy dog";
+        var actions = new HumanTypingEngine(new Random(42)).Plan(input, AppRealismProfile(false, 0.0), Layout).ToList();
+
+        actions.Any(a => a.Action is KeyAction.KeyDown or KeyAction.KeyUp).Should().BeFalse(
+            "Full realism off must use the Phase 1–8 atomic path with no down/up events");
+    }
+
+    [Fact]
+    public void RealismOnProfile_WithMisspellings_NetTextStillEqualsInput()
+    {
+        // Bump the misspelling rate to guarantee the cognitive correction path fires while
+        // dwell/rollover is active — the retype path emits Press/Chord (HoldMs) mixed with the
+        // KeyDown/KeyUp happy path, and the combination must still net-correct.
+        const string input =
+            "I believe you should receive the committee report and separate the " +
+            "necessary documents because they definitely need accommodation.";
+        var profile = AppRealismProfile(true, 1.0);
+
+        var anyBackspace = false;
+        for (var seed = 0; seed < 50; seed++)
+        {
+            var actions = new HumanTypingEngine(new Random(seed)).Plan(input, profile, Layout).ToList();
+            ReconstructAll(actions, Layout)
+                .Should().Be(input, $"combined dwell+rollover+misspelling net-text, seed={seed}");
+            if (actions.Any(a => a.Action is KeyAction.Press { Key: VirtualKey.Back }))
+                anyBackspace = true;
+        }
+
+        anyBackspace.Should().BeTrue(
+            "at MisspellingRate=1.0 with many dictionary words, at least one run must correct a misspelling");
     }
 }

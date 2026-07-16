@@ -52,19 +52,25 @@ public sealed class ErrorModel
         => _rng.NextDouble() < Math.Min(0.45, typoRate * Math.Max(0.1, currentPace));
 
     /// <summary>Pick a typo kind, weighted, among those applicable at this position.</summary>
-    public TypoKind ChooseKind(bool canTranspose, bool canShiftMistime, bool canMissDouble)
+    /// <param name="mix">Optional per-kind weights (v2 Phase 12); <c>null</c> uses
+    /// <see cref="ErrorMix.Default"/> so seeded plans without a persona are unaffected.
+    /// Only a single <see cref="Random.NextDouble"/> draw is consumed regardless of the
+    /// weights, so the RNG draw order is stable.</param>
+    public TypoKind ChooseKind(bool canTranspose, bool canShiftMistime, bool canMissDouble, ErrorMix? mix = null)
     {
+        var m = mix ?? ErrorMix.Default;
+
         // Measured mix (v2 Phase 5 & 6): substitution dominates.
         // Omission and MissingDouble are less frequent than slips, but they happen.
         var weights = new List<(TypoKind Kind, double W)>
         {
-            (TypoKind.AdjacentSlip, 0.84),
-            (TypoKind.RepeatedKey, 0.05),
-            (TypoKind.Omission, 0.03),
+            (TypoKind.AdjacentSlip, m.AdjacentSlip),
+            (TypoKind.RepeatedKey, m.RepeatedKey),
+            (TypoKind.Omission, m.Omission),
         };
-        if (canTranspose) weights.Add((TypoKind.Transposition, 0.015));
-        if (canShiftMistime) weights.Add((TypoKind.ShiftMistime, 0.06));
-        if (canMissDouble) weights.Add((TypoKind.MissingDouble, 0.005));
+        if (canTranspose) weights.Add((TypoKind.Transposition, m.Transposition));
+        if (canShiftMistime) weights.Add((TypoKind.ShiftMistime, m.ShiftMistime));
+        if (canMissDouble) weights.Add((TypoKind.MissingDouble, m.MissingDouble));
 
         var total = weights.Sum(x => x.W);
         var r = _rng.NextDouble() * total;

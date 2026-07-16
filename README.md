@@ -14,17 +14,32 @@ instead of pasting it instantly. The result reads like a real person at the keyb
 
 - **Stack:** C# / .NET 10, WPF (MVVM via CommunityToolkit.Mvvm), `SendInput` via InputSimulatorPlus.
 - **Target OS:** Windows 10 1809+ / Windows 11 (x64).
-- **Status:** ✅ **v1 complete.** All shipping phases done; 34 unit tests green; ships as a single
-  self-contained `.exe` (no prerequisites on the target machine).
+- **Status:** 🚧 **v2 in progress.** The v2 engine is implemented and unit-verified (222 tests
+  green); human-like keystroke realism (dwell, rollover, misspellings), cognitive errors,
+  personas, and multi-profile support are live in the app. Ships as a single self-contained `.exe`
+  (no prerequisites on the target machine).
 
 ## Features
 
 - **Human-like timing** — inter-keystroke delays are drawn from a log-normal distribution around
-  your target WPM, with small pauses at word boundaries, faster common letter-pairs, and a gentle
-  fatigue drift over long passages. It never types like a metronome.
+  your target WPM, with pauses at word/punctuation/sentence boundaries, corpus-driven bigram
+  familiarity timing, biomechanical hand/finger/distance modifiers, a warm-up ramp, autocorrelated
+  pace drift, gentle fatigue over long passages, and occasional attention lapses. It never types
+  like a metronome.
 - **Self-correcting typos** — an optional, tunable typo rate introduces realistic mechanical slips
-  (adjacent-key hits, transpositions, doubled letters, mistimed shifts) and **immediately backspaces
-  and fixes each one**. The net typed text always equals your input, exactly.
+  (adjacent-key hits, transpositions, doubled letters, mistimed shifts, omissions, missed doubles)
+  that are caught via **delayed detection** (a few keystrokes pass before the error is noticed and
+  backspaced) or immediate correction. The net typed text always equals your input, exactly.
+- **Cognitive misspellings** — besides mechanical typos, learned dictionary misspellings (e.g.
+  "recieve", "seperate") are typed and then corrected, either by human backspacing or by a simulated
+  autocorrect bulk-replace — modeling real-word spelling habits, not just key slips.
+- **Keystroke realism — dwell & rollover** — each keystroke is delivered as a separate key-down /
+  key-up pair with a near-Gaussian key-hold (dwell) duration, and fast touch-typist personas overlap
+  keys (the next key goes down before the previous is released — genuine negative flight), as seen in
+  real biometric typing.
+- **Personas & saved profiles** — one-click persona presets (hunt & peck, average typist, fast
+  touch-typist, mobile/autocorrect) bundle all the realism knobs into coherent characters; save,
+  name, and switch multiple profiles, and cycle them with a global hotkey (Ctrl+Shift+P).
 - **US QWERTY + Unicode fallback** — common characters are injected as genuine virtual-key + Shift
   chords (indistinguishable from physical keystrokes); anything outside the layout (accents, em
   dashes, emoji) falls back to Unicode `VK_PACKET` entry so arbitrary text still comes out correct.
@@ -32,10 +47,10 @@ instead of pasting it instantly. The result reads like a real person at the keyb
 - **Safety guards** — refuses to type into its own window, warns if focus drifts off the target
   mid-run, and detects elevated (admin) targets that a non-elevated process can't reach.
 - **Live UI** — text box with live character count and an `≈` time estimate; sliders for speed,
-  jitter and typo rate; fatigue and always-on-top toggles; layout and hotkey dropdowns; Start/Stop
-  (both **Stop** and **Escape** cancel within one keystroke).
-- **Settings persistence** — your last-used profile is saved to `%AppData%\TypeGent\settings.json`
-  and restored on the next launch (typed text is never persisted).
+  jitter and typo rate; fatigue and keystroke-realism toggles; persona, profile, layout and hotkey
+  dropdowns; Start/Stop (both **Stop** and **Escape** cancel within one keystroke).
+- **Settings persistence** — your saved profiles and window settings are stored in
+  `%AppData%\TypeGent\settings.json` and restored on the next launch (typed text is never persisted).
 
 ## Requirements
 
@@ -66,7 +81,7 @@ The App talks to the keyboard only through the `IKeyboardBackend` abstraction in
 
 ```powershell
 dotnet build                          # compile all projects (0 warnings, 0 errors)
-dotnet test                           # run the unit test suite (34 tests, all green)
+dotnet test                           # run the unit test suite (222 tests, all green)
 dotnet run --project src/TypeGent.App # launch the WPF window
 ```
 
@@ -114,22 +129,28 @@ install step required.
 ## Testing
 
 ```powershell
-dotnet test                                     # 34 tests
+dotnet test                                     # 222 tests
 dotnet test --collect:"XPlat Code Coverage"     # with line coverage on TypeGent.Core
 ```
 
-The suite covers the log-normal delay model (median/shape/clamping), the error model (typo-kind
-selection, adjacency, probability gating), the US QWERTY layout (representative characters incl. the
-real-comma rule and Unicode fallback routing), orchestrator dispatch order and cancellation, and
-end-to-end engine planning — including the guarantee that reconstructed net text always equals the
-input across many seeds and typo rates.
+The suite covers the log-normal delay model (median/shape/clamping, warm-up, pace, lapses), the
+dwell/flight/rollover keystroke-biometric layer, the error model (typo-kind selection, adjacency,
+speed coupling, cognitive misspellings, autocorrect), the US QWERTY layout (representative
+characters incl. the real-comma rule and Unicode fallback routing), orchestrator dispatch order and
+cancellation, persona presets, and end-to-end engine planning — including the guarantee that
+reconstructed net text always equals the input across many seeds and typo rates.
 
-## Roadmap (v2 candidates)
+## Roadmap
 
-Deliberately out of scope for v1: additional keyboard layouts (UK QWERTY, AZERTY, Dvorak, Colemak),
-auto-detecting the target's layout, IME/CJK support, multiple saved profiles, corpus-based bigram
-timing, delayed-detection and cognitive (dictionary-based) typos, inverse-distance neighbor
-weighting, and opt-in telemetry. The phased v2 build plan lives in `planv2.md`, and the four
-invariants every v2 phase must preserve are documented in
+v2 is in progress. **Shipped in v2:** human-like keystroke realism (dwell, rollover, negative
+flight), cognitive misspellings + autocorrect, delayed and immediate typo correction, corpus-driven
+bigram timing, biomechanical timing modifiers, pre-word planning pauses, attention lapses, and
+persona presets with multiple saved profiles (cycle hotkey included).
+
+**Deferred to the next version:** additional keyboard layouts (UK QWERTY, AZERTY, Dvorak, Colemak),
+auto-detecting the target's layout, IME/CJK support, a tunable delay-curve editor, and opt-in
+telemetry. The phased v2 build plan lives in `planv2.md` and the remediation/completion plan in
+[`planv2-remediation-and-completion.md`](planv2-remediation-and-completion.md); the four invariants
+every v2 phase must preserve are documented in
 [`docs/v2-invariants.md`](docs/v2-invariants.md) (single injected RNG, net text == input, US QWERTY
 default, controlled-target verification).

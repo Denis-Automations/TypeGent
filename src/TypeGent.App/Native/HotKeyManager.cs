@@ -19,6 +19,7 @@ public sealed class HotKeyManager : IDisposable
 {
     private const int WM_HOTKEY = 0x0312;
     private const int HotKeyId = 9000; // we only ever register one hotkey at a time
+    private const int CycleHotKeyId = 9001; // v2 Phase 12: profile-cycle hotkey (Ctrl+Shift+P)
 
     private const uint MOD_ALT = 0x0001;
     private const uint MOD_CONTROL = 0x0002;
@@ -35,10 +36,17 @@ public sealed class HotKeyManager : IDisposable
     private IntPtr _hwnd;
     private HwndSource? _source;
     private bool _registered;
+    private bool _cycleRegistered;
     private bool _disposed;
 
     /// <summary>Raised on the UI thread when the registered hotkey is pressed system-wide.</summary>
     public event EventHandler? HotKeyPressed;
+
+    /// <summary>
+    /// Raised on the UI thread when the profile-cycle hotkey (Ctrl+Shift+P) is pressed
+    /// system-wide (v2 Phase 12).
+    /// </summary>
+    public event EventHandler? ProfileCycleRequested;
 
     /// <summary>
     /// Raised when <see cref="Register"/> fails (the binding is unavailable); carries a friendly
@@ -85,12 +93,49 @@ public sealed class HotKeyManager : IDisposable
         }
     }
 
+    /// <summary>
+    /// Register the fixed profile-cycle hotkey (Ctrl+Shift+P) alongside the start hotkey
+    /// (v2 Phase 12). Independent of <see cref="Register"/>: registering/rebinding the start
+    /// hotkey does not touch this binding. A registration failure is surfaced via
+    /// <see cref="RegistrationFailed"/> with a cycle-specific message but is non-fatal.
+    /// </summary>
+    public bool RegisterCycle()
+    {
+        UnregisterCycle();
+
+        const uint vkP = 0x50;
+        _cycleRegistered = RegisterHotKey(_hwnd, CycleHotKeyId, MOD_CONTROL | MOD_SHIFT, vkP);
+
+        if (!_cycleRegistered)
+        {
+            RegistrationFailed?.Invoke(this, new RegistrationFailedEventArgs(
+                "Could not register the profile-cycle hotkey 'Ctrl+Shift+P' — it may already " +
+                "be in use by another app. Profile cycling via hotkey is disabled."));
+        }
+
+        return _cycleRegistered;
+    }
+
+    /// <summary>Unregister the profile-cycle hotkey (no-op if not registered).</summary>
+    public void UnregisterCycle()
+    {
+        if (_cycleRegistered)
+        {
+            UnregisterHotKey(_hwnd, CycleHotKeyId);
+            _cycleRegistered = false;
+        }
+    }
+
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
         // WM_HOTKEY: wParam holds the hotkey id we passed to RegisterHotKey.
-        if (msg == WM_HOTKEY && wParam.ToInt32() == HotKeyId)
+        if (msg == WM_HOTKEY)
         {
-            HotKeyPressed?.Invoke(this, EventArgs.Empty);
+            var id = wParam.ToInt32();
+            if (id == HotKeyId)
+                HotKeyPressed?.Invoke(this, EventArgs.Empty);
+            else if (id == CycleHotKeyId)
+                ProfileCycleRequested?.Invoke(this, EventArgs.Empty);
         }
 
         return IntPtr.Zero;
@@ -110,6 +155,7 @@ public sealed class HotKeyManager : IDisposable
     {
         if (_disposed) return;
         Unregister();
+        UnregisterCycle();
         _source?.RemoveHook(WndProc);
         _disposed = true;
     }

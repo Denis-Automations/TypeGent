@@ -2,17 +2,25 @@ namespace TypeGent.Core.HumanTyping;
 
 /// <summary>
 /// A curated dictionary of common English cognitive misspellings (not mechanical
-/// finger-slip typos). Each entry maps the <em>correct</em> spelling to the
-/// <em>misspelled</em> variant that a real user might type from memory.
+/// finger-slip typos). Each entry maps the <em>correct</em> spelling to a
+/// <em>misspelled</em> non-word variant that a real user might type from memory.
 ///
 /// These are <strong>knowledge errors</strong>, not motor errors: the typist "knows"
 /// the wrong spelling. Phase 7 (v2) of the build plan.
+/// <para>
+/// Scope (Phase A5): strictly orthographic misspellings — the misspelled form is not a
+/// correctly-spelled English word. Wrong-word homophone substitutions (e.g.
+/// <c>accept</c>→<c>except</c>, <c>affect</c>→<c>effect</c>, <c>weather</c>→<c>wether</c>)
+/// are intentionally excluded; they produce semantically odd "type the wrong word, then
+/// fix it" sequences and belong to a different error class.
+/// </para>
 /// </summary>
 public static class MisspellingDictionary
 {
     /// <summary>
     /// Maps correct word (lowercase) → common misspelling. All comparisons are
     /// case-insensitive (the engine restores original case when it applies one).
+    /// Every value differs from its key — there are no no-op (self-mapping) entries.
     /// </summary>
     public static readonly IReadOnlyDictionary<string, string> Entries =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -59,9 +67,7 @@ public static class MisspellingDictionary
             ["independent"]  = "independant",
             ["dependent"]    = "dependant",
             ["existence"]    = "existance",
-            ["resistance"]   = "resistance",  // correct; include anyway for mix
             ["experience"]   = "experiance",
-            ["occurrence"]   = "occurrance",
             ["hierarchy"]    = "heirarchy",
             ["category"]     = "catagory",
             ["February"]     = "Febuary",
@@ -77,16 +83,13 @@ public static class MisspellingDictionary
             ["harassment"]   = "harrassment",
             ["questionnaire"] = "questionaire",
 
-            // Phonetic confusions
+            // Dropped-letter & doubling misspellings
             ["which"]        = "wich",
             ["would"]        = "woud",
             ["could"]        = "coud",
             ["should"]       = "shoud",
             ["because"]      = "becuase",
             ["together"]     = "togeather",
-            ["whether"]      = "wether",
-            ["weather"]      = "wether",
-            ["quite"]        = "quite",     // often confused with "quiet" — same string; engine skips no-ops
             ["losing"]       = "loosing",
             ["choosing"]     = "chosing",
             ["writing"]      = "writting",
@@ -97,29 +100,6 @@ public static class MisspellingDictionary
             ["referring"]    = "refering",
             ["transferred"]  = "transfered",
             ["preferred"]    = "prefered",
-
-            // Homophones & near-homophones
-            ["accept"]       = "except",
-            ["except"]       = "accept",
-            ["affect"]       = "effect",
-            ["effect"]       = "affect",
-            ["principal"]    = "principle",
-            ["stationary"]   = "stationery",
-            ["compliment"]   = "complement",
-            ["discrete"]     = "discreet",
-            ["elicit"]       = "illicit",
-            ["emigrate"]     = "immigrate",
-            ["ensure"]       = "insure",
-            ["foreword"]     = "forward",
-            ["further"]      = "farther",
-            ["ingenious"]    = "ingenuous",
-            ["loath"]        = "loathe",
-            ["moot"]         = "mute",
-            ["passed"]       = "past",
-            ["peak"]         = "peek",
-            ["precede"]      = "proceed",
-            ["stationary"]   = "stationery",
-            ["strait"]       = "straight",
         };
 
     /// <summary>
@@ -132,7 +112,7 @@ public static class MisspellingDictionary
         if (!Entries.TryGetValue(word, out misspelling!))
             return false;
 
-        // Skip no-op entries (e.g. "quite"→"quite")
+        // Skip no-op entries (e.g. a word mapped to itself)
         return !string.Equals(word, misspelling, StringComparison.OrdinalIgnoreCase);
     }
 }

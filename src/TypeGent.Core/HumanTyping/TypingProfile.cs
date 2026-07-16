@@ -27,7 +27,8 @@ public sealed class TypingProfile
     /// <summary>
     /// Whether inter-key pace drifts autocorrelated (AR(1)) across the run — bursts of faster and
     /// slower typing instead of i.i.d. rerolls every key (v2 Phase 2). Defaults to <c>false</c> so
-    /// seeded plans keep a stable RNG draw order; the app enables it.
+    /// deterministic seeded plans keep a stable RNG draw order; the app turns it on via the
+    /// Full-realism toggle (Phase A1) / persona (Phase 12).
     /// </summary>
     public bool Pace { get; init; }
 
@@ -36,7 +37,8 @@ public sealed class TypingProfile
 
     /// <summary>
     /// Per-character probability of an attention lapse — a one-off 1.5–4 s stall (v2 Phase 1).
-    /// Defaults to 0 so seeded plans keep a stable RNG draw order; the app enables it.
+    /// Defaults to 0 so deterministic seeded plans keep a stable RNG draw order; the app turns
+    /// it on via the Full-realism toggle (Phase A1) / persona (Phase 12).
     /// </summary>
     public double LapseRate { get; init; } = 0.0;
 
@@ -49,8 +51,9 @@ public sealed class TypingProfile
     /// <summary>
     /// Per-word probability of attempting a cognitive misspelling from the
     /// <see cref="MisspellingDictionary"/> (v2 Phase 7). The misspelling is always
-    /// corrected (immediate or delayed per Phase 6). Defaults to 0 so existing seeded
-    /// plans keep their RNG draw order — the app enables it.
+    /// corrected (immediate or delayed per Phase 6). Defaults to 0 so deterministic seeded
+    /// plans keep their RNG draw order — the app turns it on via the Full-realism toggle
+    /// (Phase A1) / persona (Phase 12).
     /// </summary>
     public double MisspellingRate { get; init; } = 0.0;
 
@@ -65,8 +68,9 @@ public sealed class TypingProfile
     /// <summary>
     /// Whether to sample a near-Gaussian key-hold (dwell) duration for each keystroke and
     /// deliver it as a separate key-down / key-up pair (v2 Phase 10). Requires the Phase 9
-    /// down/up event model. Defaults to <see langword="false"/> so existing seeded plans keep
-    /// their RNG draw order — the app enables it.
+    /// down/up event model. Defaults to <see langword="false"/> so deterministic seeded plans keep
+    /// their RNG draw order — the app turns it on via the Full-realism toggle (Phase A1) /
+    /// persona (Phase 12).
     /// </summary>
     public bool DwellEnabled { get; init; } = false;
 
@@ -83,16 +87,18 @@ public sealed class TypingProfile
     public double DwellSigmaMs { get; init; } = 12.0;
 
     /// <summary>
-    /// Whether to use the key-rollover approximation on fast alternating-hand and
+    /// Whether to use key rollover on fast alternating-hand and
     /// same-hand-different-finger bigrams (v2 Phase 11, §3.3). When enabled and
-    /// <see cref="DwellEnabled"/> is true, the engine emits a pre-expanded
-    /// <c>KeyDown</c> + <c>KeyUp</c> stream where rollover keystrokes receive a
-    /// near-zero flight gap (UD ≈ 0 ms) between the previous key-up and the next
-    /// key-down, approximating the overlap seen in fast touch-typists.
+    /// <see cref="DwellEnabled"/> is true, the engine defers the previous key's
+    /// <c>KeyUp</c> so it lands *after* the next key's <c>KeyDown</c> on
+    /// rollover-eligible bigrams — genuine key overlap (negative flight) as seen
+    /// in fast touch-typists, not a zero-gap approximation.
     /// <para>
-    /// Defaults to <see langword="false"/> so existing seeded plans keep their RNG draw
+    /// Defaults to <see langword="false"/> so deterministic seeded plans keep their RNG draw
     /// order — each rollover-eligible bigram consumes one extra <c>NextDouble</c> draw
-    /// only when this flag is true.
+    /// only when this flag is true. The app turns it on via the Full-realism toggle
+    /// (Phase A1) / persona (Phase 12); it has no effect unless <see cref="DwellEnabled"/>
+    /// is also true.
     /// </para>
     /// </summary>
     public bool RolloverEnabled { get; init; } = false;
@@ -104,6 +110,16 @@ public sealed class TypingProfile
     /// <see cref="RolloverEnabled"/> is true.
     /// </summary>
     public double RolloverProbability { get; init; } = 0.55;
+
+    /// <summary>
+    /// Optional per-kind mechanical-typo weights (v2 Phase 12). When <c>null</c>
+    /// (the default) <see cref="ErrorModel.ChooseKind"/> uses <see cref="ErrorMix.Default"/>,
+    /// so existing seeded plans keep their stable RNG draw order and identical results.
+    /// A <see cref="TypingPersona"/> may set this to skew the error mix (e.g. toward
+    /// omissions for the mobile persona). The single RNG draw in <c>ChooseKind</c> is
+    /// unchanged — only which bucket it lands in shifts — so the draw order is stable.
+    /// </summary>
+    public ErrorMix? ErrorMix { get; init; }
 
     /// <summary>
     /// The median inter-key interval implied by <see cref="Wpm"/>: 60000 / (Wpm * 5).

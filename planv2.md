@@ -313,7 +313,8 @@ duration**, and the orchestrator can schedule down and up separately.
 instead of only `SimulateKeyPress`. Preserve the Unicode `VK_PACKET` fallback path.
 
 ### 9.3 Self-check for Phase 9
-- A single key round-trips as a discrete down then up with the intended hold gap into a controlled target.
+- A single key round-trips as a discrete down then up with the intended hold gap into a controlled target
+  (`tools/InputProbe/` — see Phase A3 in `planv2-remediation-and-completion.md`).
 - Orchestrator cancellation still halts within one event.
 
 **Success criteria (all must pass):**
@@ -337,6 +338,8 @@ Sample hold time per key from a near-normal distribution (small σ), feed it int
 
 ### 10.2 Self-check for Phase 10
 - Measured hold times cluster ~60–120 ms with low skew; distinct from the between-key gaps.
+  Verified via `tools/InputProbe/` (Phase A3): the CSV shows per-key dwell in the physiological range
+  with no dropped events at 100+ WPM.
 
 **Success criteria (all must pass):**
 
@@ -363,6 +366,8 @@ prior up).
 
 ### 11.3 Self-check for Phase 11
 - With rollover on, a measurable fraction of keystrokes overlap (negative flight); with it off, none do.
+  Verified via `tools/InputProbe/` (Phase A3): the CSV shows a measurable fraction of negative flights
+  (true overlap) with Full realism on at 100+ WPM, and none with rollover off.
 - All four latency families (dd/uu/du/ud) have plausible distributions.
 
 **Success criteria (all must pass):**

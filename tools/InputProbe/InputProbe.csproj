@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <!-- Dev/test tool — not published with the main app. -->
+    <IsPackable>false</IsPackable>
+    <RootNamespace>InputProbe</RootNamespace>
+    <AssemblyName>InputProbe</AssemblyName>
+  </PropertyGroup>
+
+</Project>

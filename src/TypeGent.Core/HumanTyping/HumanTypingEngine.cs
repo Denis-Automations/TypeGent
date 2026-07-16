@@ -9,15 +9,15 @@ namespace TypeGent.Core.HumanTyping;
 /// text always equals the input. The single injected <see cref="Random"/> is threaded into both
 /// the <see cref="DelayModel"/> and <see cref="ErrorModel"/>, so one seed reproduces an entire plan.
 /// <para>
-/// v2 Phase 11: when both <see cref="TypingProfile.DwellEnabled"/> and
+/// v2 Phase 11 / A4: when both <see cref="TypingProfile.DwellEnabled"/> and
 /// <see cref="TypingProfile.RolloverEnabled"/> are true, the happy-path keystrokes are
-/// pre-expanded into a <see cref="KeyAction.KeyDown"/> + <see cref="KeyAction.KeyUp"/> pair.
-/// The delay before <c>KeyDown</c> is the UD flight (sampled by <see cref="DelayModel.SampleDelayMs"/>);
-/// the delay before <c>KeyUp</c> is the dwell (from <see cref="DelayModel.SampleDwellMs"/>).
-/// For rollover-eligible bigrams where <see cref="DelayModel.ShouldRollover"/> fires, the next
-/// <c>KeyDown</c> delay is clamped to <see cref="RolloverFlightMs"/> (~0 ms) so the key-up of
-/// the prior key arrives in the stream immediately before the next key-down — the closest
-/// approximation to physical overlap achievable without event reordering.
+/// pre-expanded into a <see cref="KeyAction.KeyDown"/> + <see cref="KeyAction.KeyUp"/> stream.
+/// The engine defers the previous key's <c>KeyUp</c> so that on rollover-eligible bigrams where
+/// <see cref="DelayModel.ShouldRollover"/> fires, the next <c>KeyDown</c> is emitted *first*
+/// (during the previous key's hold), followed by the previous <c>KeyUp</c> after a short overlap
+/// (<see cref="DelayModel.SampleOverlapMs"/>, 8–25 ms). This produces genuine key overlap — true
+/// negative flight — rather than a zero-gap approximation. When rollover does not fire, the
+/// previous <c>KeyUp</c> is flushed before the next <c>KeyDown</c> as usual.
 /// </para>
 /// </summary>
 public sealed class HumanTypingEngine
@@ -46,6 +46,12 @@ public sealed class HumanTypingEngine
         // Phase 11: rollover approximation — only active when dwell is on too.
         var rolloverEnabled = profile.RolloverEnabled && dwellEnabled;
         var rolloverProb = profile.RolloverProbability;
+
+        // Phase A4 — true rollover: the previous key's KeyUp is deferred so it can land *after*
+        // the next key's KeyDown, producing genuine overlap (negative flight). When non-null,
+        // a KeyUp for this VK is pending with a dwell delay of pendingDwell ms.
+        VirtualKey? pendingUpKey = null;
+        double pendingDwell = 0.0;
 
         var prev = '\0';
         var i = 0;
@@ -239,6 +245,13 @@ public sealed class HumanTypingEngine
                 if (MisspellingDictionary.TryGet(wordText, out var misspelling)
                     && errors.ShouldApplyMisspelling(profile.MisspellingRate))
                 {
+                    // Phase A4 — flush any pending rollover KeyUp before leaving the down/up path.
+                    if (pendingUpKey is { } msFlushVk)
+                    {
+                        yield return new TimedAction(TimeSpan.FromMilliseconds(pendingDwell), new KeyAction.KeyUp(msFlushVk));
+                        pendingUpKey = null;
+                    }
+
                     // Preserve the original case pattern: if the first char is uppercase, match it.
                     var correctedMisspelling = char.IsUpper(c)
                         ? char.ToUpperInvariant(misspelling[0]) + misspelling.Substring(1)
@@ -259,11 +272,18 @@ public sealed class HumanTypingEngine
 
             if (eligible && errors.ShouldIntroduceTypo(profile.TypoRate, delays.CurrentPace))
             {
+                // Phase A4 — flush any pending rollover KeyUp before leaving the down/up path.
+                if (pendingUpKey is { } typoFlushVk)
+                {
+                    yield return new TimedAction(TimeSpan.FromMilliseconds(pendingDwell), new KeyAction.KeyUp(typoFlushVk));
+                    pendingUpKey = null;
+                }
+
                 var canTranspose = i + 1 < text.Length && char.IsLetter(text[i + 1]) && layout.CanMap(text[i + 1]);
                 var canShiftMistime = char.IsUpper(prev) && char.IsLower(c);
                 var canMissDouble = i + 1 < text.Length && char.ToLowerInvariant(c) == char.ToLowerInvariant(text[i + 1]);
 
-                var kind = errors.ChooseKind(canTranspose, canShiftMistime, canMissDouble);
+                var kind = errors.ChooseKind(canTranspose, canShiftMistime, canMissDouble, profile.ErrorMix);
                 var delay = errors.DetectionDelayChars();
 
                 switch (kind)
@@ -346,14 +366,12 @@ public sealed class HumanTypingEngine
             }
             else
             {
-                // ── Phase 11: dwell + flight pre-expansion (happy path only) ─────────────
-                // When both dwell and rollover are active, emit KeyDown + KeyUp directly so
-                // the orchestrator can see the correct event ordering. The UD (flight) delay
-                // before KeyDown is sampled as usual; the DU (dwell) delay before KeyUp comes
-                // from SampleDwellMs. For rollover-eligible bigrams where ShouldRollover fires,
-                // the UD delay is clamped to RolloverFlightMs (≈ 0) so the next KeyDown arrives
-                // in the stream immediately after the prior KeyUp — the closest sequential
-                // approximation to physical overlap without event reordering.
+                // ── Phase 11/A4: dwell + flight pre-expansion with true rollover ────────
+                // When both dwell and rollover are active, the engine defers the previous key's
+                // KeyUp. On rollover-eligible bigrams where ShouldRollover fires, the next
+                // KeyDown is emitted first (during the previous key's hold), then the previous
+                // KeyUp follows after a short overlap — genuine negative flight. When rollover
+                // does not fire, the previous KeyUp is flushed before the next KeyDown.
                 //
                 // Falls back to the Phase 10 HoldMs path for:
                 //   • Chord actions (shifted keys — modifier interaction is complex)
@@ -362,24 +380,53 @@ public sealed class HumanTypingEngine
                 if (rolloverEnabled && layout.CanMap(c) && !layout.NeedsShift(c))
                 {
                     var vk = layout.MapChar(c);
-                    var ud = delays.SampleDelayMs(baseDelay, ctx);  // UD flight (after prev KeyUp)
-                    var dwell = delays.SampleDwellMs(dwellMean, dwellSigma);  // DU hold duration
+                    // Sampled unconditionally to preserve the RNG draw order (see v2-invariants §1).
+                    // ud is the KeyDown delay only when rollover does NOT fire; when it fires,
+                    // the KeyDown delay is the previous key's dwell (pendingDwell) instead.
+                    var ud = delays.SampleDelayMs(baseDelay, ctx);            // UD flight
+                    var dwell = delays.SampleDwellMs(dwellMean, dwellSigma);  // DU hold
 
-                    // Rollover: if eligible, consume one RNG draw to decide.
-                    if (IsRolloverEligible(prev, c, layout) && delays.ShouldRollover(rolloverProb))
-                        ud = DelayModel.RolloverFlightMs;  // near-zero: key-N+1 down immediately after key-N up
+                    var rollover = IsRolloverEligible(prev, c, layout) && delays.ShouldRollover(rolloverProb);
 
-                    yield return new TimedAction(TimeSpan.FromMilliseconds(ud), new KeyAction.KeyDown(vk));
-                    yield return new TimedAction(TimeSpan.FromMilliseconds(dwell), new KeyAction.KeyUp(vk));
+                    if (rollover && pendingUpKey is { } overlapPrevVk)
+                    {
+                        // True overlap: next key goes down during the previous key's hold (delay =
+                        // prev dwell), then the previous key is released overlap ms later.
+                        var overlap = delays.SampleOverlapMs();
+                        yield return new TimedAction(TimeSpan.FromMilliseconds(pendingDwell), new KeyAction.KeyDown(vk));
+                        yield return new TimedAction(TimeSpan.FromMilliseconds(overlap), new KeyAction.KeyUp(overlapPrevVk));
+                    }
+                    else
+                    {
+                        // No overlap: flush the previous key's KeyUp (if any), then this key goes
+                        // down after the normal flight delay.
+                        if (pendingUpKey is { } flushVk)
+                            yield return new TimedAction(TimeSpan.FromMilliseconds(pendingDwell), new KeyAction.KeyUp(flushVk));
+                        yield return new TimedAction(TimeSpan.FromMilliseconds(ud), new KeyAction.KeyDown(vk));
+                    }
+
+                    // This key's KeyUp is now pending — emitted on the next iteration or at end-of-text.
+                    pendingUpKey = vk;
+                    pendingDwell = dwell;
                 }
                 else
                 {
                     // Phase 9/10 HoldMs path (Chord, Text, dwell-only, or rollover off)
+                    // Phase A4 — flush any pending rollover KeyUp before leaving the down/up path.
+                    if (pendingUpKey is { } holdFlushVk)
+                    {
+                        yield return new TimedAction(TimeSpan.FromMilliseconds(pendingDwell), new KeyAction.KeyUp(holdFlushVk));
+                        pendingUpKey = null;
+                    }
                     yield return Key(c, delays.SampleDelayMs(baseDelay, ctx));
                 }
                 prev = c;
                 i++;
             }
         }
+
+        // Phase A4 — flush the final pending KeyUp at end-of-text.
+        if (pendingUpKey is { } lastVk)
+            yield return new TimedAction(TimeSpan.FromMilliseconds(pendingDwell), new KeyAction.KeyUp(lastVk));
     }
 }

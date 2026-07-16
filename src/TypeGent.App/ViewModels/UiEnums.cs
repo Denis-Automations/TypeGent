@@ -21,3 +21,18 @@ public enum HotKeyKind
     CtrlAltT,
     F8,
 }
+
+/// <summary>
+/// One-click typing personas shown in the UI dropdown (v2 Phase 12). Each maps to a
+/// fully-populated <see cref="TypeGent.Core.HumanTyping.TypingProfile"/> via the
+/// <c>TypingPersona</c> factory in Core. <see cref="Custom"/> leaves the sliders to the
+/// user's own values rather than a preset.
+/// </summary>
+public enum PersonaKind
+{
+    HuntAndPeck,
+    Average,
+    FastTouchTypist,
+    MobileAutocorrect,
+    Custom,
+}
