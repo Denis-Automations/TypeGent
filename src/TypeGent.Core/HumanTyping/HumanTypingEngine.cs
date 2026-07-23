@@ -36,6 +36,11 @@ public sealed class HumanTypingEngine
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentNullException.ThrowIfNull(layout);
 
+        // Normalize line endings to '\n' so the loop below only ever sees one newline form:
+        // Windows \r\n, Unix \n, and legacy lone \r all collapse to \n (a blank line between
+        // paragraphs — \r\n\r\n — correctly becomes \n\n, i.e. two Enter keypresses).
+        text = text.Replace("\r\n", "\n").Replace("\r", "\n");
+
         var delays = new DelayModel(_rng, profile.Jitter, profile.LapseRate, profile.LapseMinMs, profile.LapseMaxMs, profile.PaceSigma);
         var errors = new ErrorModel(_rng);
         var baseDelay = profile.BaseDelayMs;
@@ -228,6 +233,27 @@ public sealed class HumanTypingEngine
         {
             var c = text[i];
             var ctx = Ctx(c, prev, i);
+
+            // Newline → emit a real Enter keypress instead of a Unicode (VK_PACKET) character.
+            // The layout can't map '\n', so without this branch it falls to KeyAction.Text and the
+            // target app ignores the VK_PACKET newline, producing one continuous line. Placed before
+            // the misspelling/typo checks (those require char.IsLetter, so '\n' is never eligible)
+            // and outside the rollover path (CanMap('\n') is false), so it can't interfere with them.
+            if (c == '\n')
+            {
+                // Phase A4 — flush any pending rollover KeyUp before emitting an atomic Enter.
+                if (pendingUpKey is { } nlFlushVk)
+                {
+                    yield return new TimedAction(TimeSpan.FromMilliseconds(pendingDwell), new KeyAction.KeyUp(nlFlushVk));
+                    pendingUpKey = null;
+                }
+                yield return new TimedAction(
+                    TimeSpan.FromMilliseconds(delays.SampleDelayMs(baseDelay, ctx)),
+                    new KeyAction.Press(VirtualKey.Enter));
+                prev = c;
+                i++;
+                continue;
+            }
 
             // ── v2 Phase 7: cognitive misspelling check (word-boundary, before per-char typos) ──
             // Fire once per word start when the whole word is in the misspelling dictionary and we

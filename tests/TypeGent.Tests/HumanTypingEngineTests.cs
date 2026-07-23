@@ -258,4 +258,89 @@ public class HumanTypingEngineTests
         anyBackspace.Should().BeTrue(
             "at MisspellingRate=1.0 with many dictionary words, at least one run must correct a misspelling");
     }
+
+    // ── Newline / paragraph-break handling ──────────────────────────────────────────────────
+    // '\n' (and the normalized '\r\n' / '\r' forms) must emit a real Enter keypress
+    // (KeyAction.Press(VirtualKey.Enter)), never a Unicode VK_PACKET Text fallback. Without this,
+    // target apps ignore the newline and run paragraphs together into one continuous line.
+
+    private static int CountEnterPresses(List<TimedAction> actions) =>
+        actions.Count(a => a.Action is KeyAction.Press { Key: VirtualKey.Enter });
+
+    private static bool HasUnicodeNewlineFallback(List<TimedAction> actions) =>
+        actions.Any(a => a.Action is KeyAction.Text t && (t.Value.Contains('\n') || t.Value.Contains('\r')));
+
+    [Fact]
+    public void Newline_Lf_ProducesExactlyOneEnterKey()
+    {
+        const string input = "a\nb";
+        var actions = new HumanTypingEngine(new Random(1)).Plan(input, AppRealismProfile(false, 0.0), Layout).ToList();
+
+        CountEnterPresses(actions).Should().Be(1);
+        HasUnicodeNewlineFallback(actions).Should().BeFalse("the newline must be a real Enter, not a VK_PACKET char");
+    }
+
+    [Theory]
+    [InlineData("a\r\nb")]   // Windows CRLF
+    [InlineData("a\nb")]     // Unix LF
+    [InlineData("a\rb")]     // legacy lone CR
+    public void Newline_AllLineEndings_ProduceExactlyOneEnterKey(string input)
+    {
+        var actions = new HumanTypingEngine(new Random(1)).Plan(input, AppRealismProfile(false, 0.0), Layout).ToList();
+
+        CountEnterPresses(actions).Should().Be(1, $"the {input.Replace("\r", "\\r").Replace("\n", "\\n")} form must produce a single Enter");
+        HasUnicodeNewlineFallback(actions).Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("a\n\nb")]      // LF blank line between paragraphs
+    [InlineData("a\r\n\r\nb")]  // CRLF blank line between paragraphs
+    public void Newline_BlankLineBetweenParagraphs_ProducesTwoEnterKeys(string input)
+    {
+        var actions = new HumanTypingEngine(new Random(1)).Plan(input, AppRealismProfile(false, 0.0), Layout).ToList();
+
+        CountEnterPresses(actions).Should().Be(2, "a blank line between paragraphs requires two Enter keypresses");
+        HasUnicodeNewlineFallback(actions).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Newline_FullRealismProfile_ProducesEnterAndFlushesPendingKeyUp()
+    {
+        // With dwell+rollover active, a newline may interrupt a pending KeyDown/KeyUp pair. The
+        // Enter branch must flush the pending KeyUp first, so KeyDown/KeyUp stay balanced and the
+        // newline still emits exactly one atomic Enter.
+        const string input = "the quick brown fox\njumps over the lazy dog";
+        var actions = new HumanTypingEngine(new Random(42)).Plan(input, AppRealismProfile(true, 0.02), Layout).ToList();
+
+        CountEnterPresses(actions).Should().Be(1);
+        HasUnicodeNewlineFallback(actions).Should().BeFalse();
+
+        // Every KeyDown must have a matching KeyUp — no key left held across the newline.
+        var downs = actions.Count(a => a.Action is KeyAction.KeyDown);
+        var ups = actions.Count(a => a.Action is KeyAction.KeyUp);
+        downs.Should().Be(ups, "the pending rollover KeyUp must be flushed before the Enter keypress");
+    }
+
+    [Fact]
+    public void Newline_LeadingAndTrailingNewlines_ProduceEnterKeys()
+    {
+        const string input = "\nabc\n";
+        var actions = new HumanTypingEngine(new Random(1)).Plan(input, AppRealismProfile(false, 0.0), Layout).ToList();
+
+        CountEnterPresses(actions).Should().Be(2, "leading and trailing newlines each produce an Enter");
+        HasUnicodeNewlineFallback(actions).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Newline_NoRngShift_BetweenSeedsReproducesIdenticalPlan()
+    {
+        // The Enter branch draws from the same RNG stream (SampleDelayMs) as a normal key, so a
+        // newline must not perturb the RNG draw order for surrounding characters.
+        var profile = AppRealismProfile(false, 0.0);
+
+        var first = new HumanTypingEngine(new Random(99)).Plan("ab\ncd", profile, Layout).ToList();
+        var second = new HumanTypingEngine(new Random(99)).Plan("ab\ncd", profile, Layout).ToList();
+
+        second.Should().Equal(first);
+    }
 }
